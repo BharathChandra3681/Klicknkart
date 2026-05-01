@@ -68,6 +68,48 @@ export type Collection = {
   products: { edges: { node: Product }[]; pageInfo?: { hasNextPage: boolean; endCursor: string } };
 };
 
+export type CustomerAddress = {
+  id: string;
+  address1: string | null;
+  address2: string | null;
+  city: string | null;
+  province: string | null;
+  zip: string | null;
+  country: string | null;
+};
+
+export type CustomerOrder = {
+  id: string;
+  orderNumber: number;
+  processedAt: string;
+  financialStatus: string;
+  fulfillmentStatus: string;
+  currentTotalPrice: Money;
+  lineItems: { edges: { node: { title: string; quantity: number } }[] };
+};
+
+export type Customer = {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  phone: string | null;
+  defaultAddress: CustomerAddress | null;
+  addresses: { edges: { node: CustomerAddress }[] };
+  orders: { edges: { node: CustomerOrder }[] };
+};
+
+export type CustomerUserError = {
+  code: string;
+  field: string[] | null;
+  message: string;
+};
+
+export type CustomerAccessToken = {
+  accessToken: string;
+  expiresAt: string;
+};
+
 export type ShopifyConnection<T> = {
   edges: { node: T }[];
   pageInfo?: {

@@ -15,7 +15,16 @@ import {
   REMOVE_FROM_CART_MUTATION,
   GET_CART_QUERY,
 } from './queries/cart';
-import type { Cart, Collection, Product, ShopifyConnection } from './types';
+import {
+  CUSTOMER_CREATE_MUTATION,
+  CUSTOMER_ACCESS_TOKEN_CREATE,
+  CUSTOMER_ACCESS_TOKEN_DELETE,
+  GET_CUSTOMER_QUERY,
+} from './queries/customer';
+import type {
+  Cart, Collection, Product, ShopifyConnection,
+  Customer, CustomerAccessToken, CustomerUserError,
+} from './types';
 
 // ── Products ─────────────────────────────────────────────────────────────────
 
@@ -118,4 +127,61 @@ export async function removeFromCart(
     variables: { cartId, lineIds },
   });
   return data.cartLinesRemove.cart;
+}
+
+// ── Customer Auth ─────────────────────────────────────────────────────────────
+
+export async function createCustomer(input: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  acceptsMarketing?: boolean;
+}): Promise<{ customer: Customer | null; errors: CustomerUserError[] }> {
+  const data = await shopifyFetch<{
+    customerCreate: { customer: Customer | null; customerUserErrors: CustomerUserError[] };
+  }>({
+    query: CUSTOMER_CREATE_MUTATION,
+    variables: { input },
+  });
+  return {
+    customer: data.customerCreate.customer,
+    errors: data.customerCreate.customerUserErrors,
+  };
+}
+
+export async function loginCustomer(email: string, password: string): Promise<{
+  accessToken: CustomerAccessToken | null;
+  errors: CustomerUserError[];
+}> {
+  const data = await shopifyFetch<{
+    customerAccessTokenCreate: {
+      customerAccessToken: CustomerAccessToken | null;
+      customerUserErrors: CustomerUserError[];
+    };
+  }>({
+    query: CUSTOMER_ACCESS_TOKEN_CREATE,
+    variables: { input: { email, password } },
+  });
+  return {
+    accessToken: data.customerAccessTokenCreate.customerAccessToken,
+    errors: data.customerAccessTokenCreate.customerUserErrors,
+  };
+}
+
+export async function logoutCustomer(accessToken: string): Promise<void> {
+  await shopifyFetch({
+    query: CUSTOMER_ACCESS_TOKEN_DELETE,
+    variables: { customerAccessToken: accessToken },
+  });
+}
+
+export async function getCustomer(accessToken: string): Promise<Customer | null> {
+  try {
+    const data = await shopifyFetch<{ customer: Customer | null }>({
+      query: GET_CUSTOMER_QUERY,
+      variables: { customerAccessToken: accessToken },
+    });
+    return data.customer;
+  } catch { return null; }
 }
