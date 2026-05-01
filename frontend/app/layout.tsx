@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { CartProvider } from '@/context/CartContext';
-import Navbar from '@/components/Navbar';
+import { CustomerProvider } from '@/context/CustomerContext';
+import SiteShell from '@/components/SiteShell';
 
 export const metadata: Metadata = {
   title: { default: 'KlicknKart', template: '%s | KlicknKart' },
@@ -23,11 +23,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-screen flex flex-col pt-20">
-        <CartProvider>
-          <Navbar />
-          <div className="flex-1">{children}</div>
-        </CartProvider>
+      <body className="min-h-screen flex flex-col">
+        <CustomerProvider>
+          <SiteShell>
+            {children}
+          </SiteShell>
+        </CustomerProvider>
       </body>
     </html>
   );
