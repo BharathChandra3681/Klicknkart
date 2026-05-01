@@ -2,6 +2,7 @@ import { shopifyFetch } from './client';
 import {
   GET_PRODUCTS_QUERY,
   GET_PRODUCT_BY_HANDLE_QUERY,
+  SEARCH_PRODUCTS_QUERY,
 } from './queries/products';
 import {
   GET_COLLECTIONS_QUERY,
@@ -34,6 +35,15 @@ export async function getProductByHandle(handle: string): Promise<Product | null
     });
     return data.productByHandle;
   } catch { return null; }
+}
+
+export async function searchProducts(query: string, first = 24): Promise<Product[]> {
+  try {
+    const data = await shopifyFetch<{ products: ShopifyConnection<Product> }>({
+      query: SEARCH_PRODUCTS_QUERY, variables: { query, first },
+    });
+    return data.products.edges.map((e) => e.node);
+  } catch { return []; }
 }
 
 // ── Collections ───────────────────────────────────────────────────────────────
