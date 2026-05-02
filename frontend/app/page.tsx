@@ -7,25 +7,6 @@ import type { Product } from '@/lib/shopify/types';
 
 export const revalidate = 60;
 
-const CATEGORY_ICONS: Record<string, string> = {
-  paper: 'description',
-  'pens-pencils': 'edit',
-  'files-folders': 'folder',
-  'envelopes-holders': 'mail',
-  'staplers-punches': 'push_pin',
-  batteries: 'battery_full',
-  'binders-clips': 'attach_file',
-  calculators: 'calculate',
-  'ict-accessories': 'devices',
-  'books-notes': 'menu_book',
-  'board-markers': 'draw',
-  'tapes-glue': 'content_paste',
-  'scissors-pins': 'content_cut',
-  'trays-dispensers': 'inbox',
-  'rulers-stamps-tissue': 'straighten',
-  'printer-toners': 'print',
-};
-
 function ProductCard({ product }: { product: Product }) {
   const price = product.priceRange.minVariantPrice;
   const image = product.featuredImage;
@@ -75,7 +56,7 @@ function ProductCard({ product }: { product: Product }) {
 export default async function HomePage() {
   const [products, collections] = await Promise.all([
     getProducts(8),
-    getCollections(250),
+    getCollections(20),
   ]);
 
   const stationeryProducts = products.slice(0, 3);
@@ -174,7 +155,6 @@ export default async function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
             {collections.length > 0 ? collections.map((collection) => {
               const image = collection.image ?? collection.products.edges[0]?.node.featuredImage ?? null;
-              const icon = CATEGORY_ICONS[collection.handle] ?? 'category';
 
               return (
                 <Link
@@ -193,7 +173,7 @@ export default async function HomePage() {
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center bg-primary-fixed/20">
-                        <span className="material-symbols-outlined text-5xl text-secondary">{icon}</span>
+                        <span className="text-4xl">{getCategoryEmoji(collection.handle)}</span>
                       </div>
                     )}
                   </div>
@@ -239,4 +219,26 @@ export default async function HomePage() {
       <Footer />
     </main>
   );
+}
+
+function getCategoryEmoji(handle: string): string {
+  const map: Record<string, string> = {
+    paper: '📄',
+    'pens-pencils': '✏️',
+    'files-folders': '🗂️',
+    'envelopes-holders': '✉️',
+    'staplers-punches': '📌',
+    batteries: '🔋',
+    'binders-clips': '📎',
+    calculators: '🧮',
+    'ict-accessories': '💾',
+    'books-notes': '📓',
+    'board-markers': '🖊️',
+    'tapes-glue': '🧲',
+    'scissors-pins': '✂️',
+    'trays-dispensers': '🗳️',
+    'rulers-stamps-tissue': '📏',
+    'printer-toners': '🖨️',
+  };
+  return map[handle] ?? '📦';
 }
