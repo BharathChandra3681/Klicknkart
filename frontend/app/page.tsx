@@ -3,55 +3,11 @@ import Image from 'next/image';
 import { getProducts, getCollections } from '@/lib/shopify';
 import HeroCarousel from '@/components/HeroCarousel';
 import Footer from '@/components/Footer';
-import type { Product } from '@/lib/shopify/types';
+import ProductCard from '@/components/ProductCard';
+import QuickAddButton from '@/components/QuickAddButton';
 
 export const revalidate = 60;
 
-function ProductCard({ product }: { product: Product }) {
-  const price = product.priceRange.minVariantPrice;
-  const image = product.featuredImage;
-
-  return (
-    <div className="group relative bg-white/50 border border-outline-variant/30 rounded-xl overflow-hidden hover:shadow-xl transition-all duration-300">
-      <div className="aspect-square relative overflow-hidden bg-white">
-        {image ? (
-          <Image
-            src={image.url}
-            alt={image.altText ?? product.title}
-            fill
-            className="object-cover group-hover:scale-110 transition-transform duration-500"
-            sizes="(max-width: 640px) 100vw, 25vw"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-surface-container">
-            <span className="material-symbols-outlined text-[64px] text-outline">inventory_2</span>
-          </div>
-        )}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-        <Link
-          href={`/products/${product.handle}`}
-          className="absolute bottom-4 left-4 right-4 bg-primary text-white py-3 rounded-lg flex items-center justify-center gap-2 translate-y-12 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 text-sm font-medium"
-        >
-          <span className="material-symbols-outlined text-sm">shopping_cart</span>
-          View Product
-        </Link>
-      </div>
-      <div className="p-4">
-        <p className="text-xs text-secondary font-bold uppercase tracking-wider mb-1">
-          {product.tags[0] ?? 'Stationery'}
-        </p>
-        <h3 className="text-primary font-bold line-clamp-1">{product.title}</h3>
-        <div className="flex items-center gap-2 mt-2">
-          <span className="font-bold text-lg text-primary">
-            {parseFloat(price.amount) > 0
-              ? `${price.currencyCode} ${parseFloat(price.amount).toFixed(2)}`
-              : 'Price on request'}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default async function HomePage() {
   const [products, collections] = await Promise.all([
@@ -103,10 +59,7 @@ export default async function HomePage() {
                     ? `${p.priceRange.minVariantPrice.currencyCode} ${parseFloat(p.priceRange.minVariantPrice.amount).toFixed(2)}`
                     : 'Price on request'}
                 </span>
-                <Link href={`/products/${p.handle}`}
-                  className="bg-primary text-white p-2 rounded-full hover:bg-secondary transition-colors">
-                  <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
-                </Link>
+                <QuickAddButton variantId={p.variants.edges[0]?.node.id} availableForSale={p.availableForSale} />
               </div>
             </div>
           )) : (
