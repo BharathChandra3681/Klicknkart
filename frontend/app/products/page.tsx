@@ -1,23 +1,36 @@
 import { getProducts } from '@/lib/shopify';
 import ProductCard from '@/components/ProductCard';
+import Footer from '@/components/Footer';
 
 export const revalidate = 60;
 
 export default async function ProductsPage() {
-  const products = await getProducts(24);
+  const products = await getProducts(48);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="mb-8 text-3xl font-bold tracking-tight text-zinc-900">All Products</h1>
-      {products.length === 0 ? (
-        <p className="text-zinc-500">No products found. Add some in your Shopify admin.</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
+    <>
+      <div className="max-w-7xl mx-auto px-6 lg:px-16 py-10">
+        <div className="mb-8">
+          <h1 className="text-3xl font-extrabold text-primary">All Products</h1>
+          <p className="text-on-surface-variant mt-1">
+            {products.length > 0 ? `${products.length} products available` : 'Browse our full catalogue'}
+          </p>
         </div>
-      )}
-    </main>
+
+        {products.length === 0 ? (
+          <div className="glass-card rounded-2xl p-16 text-center">
+            <span className="material-symbols-outlined text-6xl text-outline block mb-4">inventory_2</span>
+            <p className="text-on-surface-variant">No products yet. Import your catalogue in Shopify Admin.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
+            {products.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        )}
+      </div>
+      <Footer />
+    </>
   );
 }
