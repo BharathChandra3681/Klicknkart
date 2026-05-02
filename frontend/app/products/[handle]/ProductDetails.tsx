@@ -18,6 +18,13 @@ export default function ProductDetails({ product }: { product: Product }) {
 
   const [activeImg, setActiveImg] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState<Variant | undefined>(variants[0]);
+  const [selectedOptionsMap, setSelectedOptionsMap] = useState<Record<string, string>>(
+    () => {
+      const initial = {} as Record<string, string>;
+      (variants[0]?.selectedOptions || []).forEach((o) => (initial[o.name] = o.value));
+      return initial;
+    }
+  );
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [newTag, setNewTag] = useState('');
@@ -40,7 +47,45 @@ export default function ProductDetails({ product }: { product: Product }) {
     setTimeout(() => setAdded(false), 2000);
   }
 
-  const currentImage = images[activeImg] ?? null;
+  // currentImage is derived from galleryImages (defined below)
+
+  // Derive option names and values from variants
+  const optionNames = Array.from(
+    new Set(variants.flatMap((v) => v.selectedOptions.map((o) => o.name)))
+  );
+  const optionValues: Record<string, string[]> = {};
+  optionNames.forEach((name) => {
+    optionValues[name] = Array.from(
+      new Set(variants.map((v) => v.selectedOptions.find((o) => o.name === name)?.value).filter(Boolean) as string[])
+    );
+  });
+
+  // Helper: find variant by options map or by id
+  function findVariantByOptions(opts: Record<string, string>) {
+    return variants.find((v) =>
+      v.selectedOptions.every((so) => (opts[so.name] ?? '') === so.value)
+    );
+  }
+
+  function findVariantById(id: string | null | undefined) {
+    if (!id) return undefined;
+    return variants.find((v) => v.id === id);
+  }
+
+  // Variant-specific images: prefer images that mention variant value in altText or variant.image if provided
+  const variantSpecificImages: ImageNode[] | null = (() => {
+    const variantImg = (selectedVariant as any)?.image?.url;
+    if (variantImg) return [{ url: variantImg, altText: selectedVariant?.title ?? null }];
+    if (!selectedVariant) return null;
+    const byAlt = images.filter((img) =>
+      img.altText && selectedVariant.selectedOptions.some((so) => img.altText!.includes(so.value))
+    );
+    return byAlt.length ? byAlt : null;
+  })();
+
+  const galleryImages = variantSpecificImages && variantSpecificImages.length > 0 ? variantSpecificImages : images;
+
+  const currentImage = galleryImages[activeImg] ?? null;
 
   // Merge server-side tags with client-side overrides (localStorage)
   useEffect(() => {
@@ -59,6 +104,43 @@ export default function ProductDetails({ product }: { product: Product }) {
       // ignore
     }
   }, [product.id]);
+
+  // Initialize selected variant from URL param or localStorage if present
+  useEffect(() => {
+    try {
+      const qp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('variant') : null;
+      const ls = typeof window !== 'undefined' ? localStorage.getItem(`product-variant-${product.id}`) : null;
+      const byQp = qp ? findVariantById(qp) : undefined;
+      const byLs = ls ? findVariantById(ls) : undefined;
+      if (byQp) {
+        setSelectedVariant(byQp);
+        const map: Record<string, string> = {};
+        byQp.selectedOptions.forEach((o) => (map[o.name] = o.value));
+        setSelectedOptionsMap(map);
+      } else if (byLs) {
+        setSelectedVariant(byLs);
+        const map: Record<string, string> = {};
+        byLs.selectedOptions.forEach((o) => (map[o.name] = o.value));
+        setSelectedOptionsMap(map);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [product.id]);
+
+  // When selectedVariant changes, persist to URL and localStorage and reset active image
+  useEffect(() => {
+    if (!selectedVariant) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('variant', selectedVariant.id);
+      window.history.replaceState({}, '', url.toString());
+      localStorage.setItem(`product-variant-${product.id}`, selectedVariant.id);
+    } catch (e) {
+      // ignore
+    }
+    setActiveImg(0);
+  }, [selectedVariant, product.id]);
 
   // Do not show Shopify/server tags by default. Only show client-side tags
   // (local overrides) to avoid displaying tags on every product.
@@ -121,10 +203,10 @@ export default function ProductDetails({ product }: { product: Product }) {
           )}
         </div>
 
-        {/* Thumbnails */}
-        {images.length > 1 && (
+        {/* Thumbnails (variant-aware) */}
+        {galleryImages.length > 1 && (
           <div className="grid grid-cols-4 gap-4">
-            {images.slice(0, 4).map((img, i) => (
+            {galleryImages.slice(0, 4).map((img, i) => (
               <button
                 key={i}
                 onClick={() => setActiveImg(i)}
@@ -228,31 +310,42 @@ export default function ProductDetails({ product }: { product: Product }) {
           <p className="text-on-surface-variant leading-relaxed">{product.description}</p>
         )}
 
-        {/* Variant selector */}
+        {/* Variant selector (grouped by option: Color / Size etc.) */}
         {hasVariants && (
           <div>
             <h3 className="text-sm font-bold text-on-surface mb-3 uppercase tracking-wider">Options</h3>
-            <div className="grid grid-cols-3 gap-3">
-              {variants.map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => setSelectedVariant(v)}
-                  disabled={!v.availableForSale}
-                  className={`py-2 px-4 rounded-lg text-sm font-semibold text-center transition-all ${
-                    selectedVariant?.id === v.id
-                      ? 'border-2 border-primary text-primary'
-                      : v.availableForSale
-                      ? 'border border-white/50 text-on-surface-variant hover:bg-white/40'
-                      : 'border border-outline-variant/30 text-outline line-through cursor-not-allowed'
-                  }`}
-                  style={
-                    selectedVariant?.id === v.id
-                      ? { background: 'rgba(255,255,255,0.5)' }
-                      : { background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)' }
-                  }
-                >
-                  {v.title}
-                </button>
+            <div className="flex flex-col gap-4">
+              {optionNames.map((name) => (
+                <div key={name}>
+                  <div className="text-xs font-bold text-on-surface mb-2 uppercase tracking-wider">{name}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {optionValues[name].map((value) => {
+                      const candidate = { ...selectedOptionsMap, [name]: value };
+                      const match = findVariantByOptions(candidate);
+                      const isSelected = selectedOptionsMap[name] === value;
+                      return (
+                        <button
+                          key={value}
+                          onClick={() => {
+                            setSelectedOptionsMap((p) => ({ ...p, [name]: value }));
+                            if (match) setSelectedVariant(match);
+                          }}
+                          disabled={!match}
+                          className={`py-2 px-4 rounded-lg text-sm font-semibold text-center transition-all ${
+                            isSelected
+                              ? 'border-2 border-primary text-primary'
+                              : match
+                              ? 'border border-white/50 text-on-surface-variant hover:bg-white/40'
+                              : 'border border-outline-variant/30 text-outline cursor-not-allowed'
+                          }`}
+                          style={isSelected ? { background: 'rgba(255,255,255,0.5)' } : { background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)' }}
+                        >
+                          {value}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
