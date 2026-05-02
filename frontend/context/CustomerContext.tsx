@@ -8,14 +8,22 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import { getCustomer, loginCustomer, logoutCustomer, createCustomer } from '@/lib/shopify';
+import {
+  getCustomer,
+  loginCustomer,
+  logoutCustomer,
+  createCustomer,
+  updateCustomer,
+} from '@/lib/shopify';
 import type { Customer, CustomerUserError } from '@/lib/shopify/types';
 
-const TOKEN_KEY = 'shopify_customer_token';
+const TOKEN_KEY   = 'shopify_customer_token';
+const EXPIRES_KEY = 'shopify_customer_token_expires';
 
 type CustomerContextValue = {
   customer: Customer | null;
   loading: boolean;
+  token: string | null;
   login: (email: string, password: string) => Promise<CustomerUserError[]>;
   register: (input: {
     firstName: string;
@@ -25,27 +33,50 @@ type CustomerContextValue = {
     acceptsMarketing?: boolean;
   }) => Promise<CustomerUserError[]>;
   logout: () => Promise<void>;
+  updateProfile: (input: {
+    firstName?: string; lastName?: string;
+    email?: string; phone?: string; password?: string;
+  }) => Promise<CustomerUserError[]>;
+  refreshCustomer: () => Promise<void>;
 };
 
 const CustomerContext = createContext<CustomerContextValue | null>(null);
 
 export function CustomerProvider({ children }: { children: ReactNode }) {
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
+  const [token, setToken]       = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) { setLoading(false); return; }
-    getCustomer(token)
+    const storedToken   = localStorage.getItem(TOKEN_KEY);
+    const storedExpires = localStorage.getItem(EXPIRES_KEY);
+
+    if (!storedToken) { setLoading(false); return; }
+
+    // Token expiry check
+    if (storedExpires && new Date(storedExpires) <= new Date()) {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(EXPIRES_KEY);
+      setLoading(false);
+      return;
+    }
+
+    setToken(storedToken);
+    getCustomer(storedToken)
       .then((c) => setCustomer(c))
-      .catch(() => localStorage.removeItem(TOKEN_KEY))
+      .catch(() => {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(EXPIRES_KEY);
+      })
       .finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const { accessToken, errors } = await loginCustomer(email, password);
     if (accessToken) {
-      localStorage.setItem(TOKEN_KEY, accessToken.accessToken);
+      localStorage.setItem(TOKEN_KEY,   accessToken.accessToken);
+      localStorage.setItem(EXPIRES_KEY, accessToken.expiresAt);
+      setToken(accessToken.accessToken);
       const c = await getCustomer(accessToken.accessToken);
       setCustomer(c);
     }
@@ -58,24 +89,44 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   }) => {
     const { errors } = await createCustomer(input);
     if (errors.length === 0) {
-      // Auto-login after register
-      const loginErrors = await login(input.email, input.password);
-      return loginErrors;
+      return login(input.email, input.password);
     }
     return errors;
   }, [login]);
 
   const logout = useCallback(async () => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (token) {
-      await logoutCustomer(token).catch(() => {});
+    const storedToken = localStorage.getItem(TOKEN_KEY);
+    if (storedToken) {
+      await logoutCustomer(storedToken).catch(() => {});
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(EXPIRES_KEY);
     }
+    setToken(null);
     setCustomer(null);
   }, []);
 
+  const updateProfile = useCallback(async (input: {
+    firstName?: string; lastName?: string;
+    email?: string; phone?: string; password?: string;
+  }) => {
+    const storedToken = localStorage.getItem(TOKEN_KEY);
+    if (!storedToken) return [{ code: 'UNIDENTIFIED_CUSTOMER', field: null, message: 'Not logged in' }];
+    const { customer: updated, errors } = await updateCustomer(storedToken, input);
+    if (errors.length === 0 && updated) {
+      setCustomer((prev) => prev ? { ...prev, ...updated } : updated);
+    }
+    return errors;
+  }, []);
+
+  const refreshCustomer = useCallback(async () => {
+    const storedToken = localStorage.getItem(TOKEN_KEY);
+    if (!storedToken) return;
+    const c = await getCustomer(storedToken);
+    setCustomer(c);
+  }, []);
+
   return (
-    <CustomerContext.Provider value={{ customer, loading, login, register, logout }}>
+    <CustomerContext.Provider value={{ customer, loading, token, login, register, logout, updateProfile, refreshCustomer }}>
       {children}
     </CustomerContext.Provider>
   );
