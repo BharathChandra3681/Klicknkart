@@ -70,12 +70,15 @@ export type Collection = {
 
 export type CustomerAddress = {
   id: string;
+  firstName: string | null;
+  lastName: string | null;
   address1: string | null;
   address2: string | null;
   city: string | null;
   province: string | null;
   zip: string | null;
   country: string | null;
+  phone: string | null;
 };
 
 export type CustomerOrder = {

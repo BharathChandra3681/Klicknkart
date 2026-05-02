@@ -20,6 +20,11 @@ import {
   CUSTOMER_ACCESS_TOKEN_CREATE,
   CUSTOMER_ACCESS_TOKEN_DELETE,
   GET_CUSTOMER_QUERY,
+  CUSTOMER_RECOVER_MUTATION,
+  CUSTOMER_UPDATE_MUTATION,
+  CUSTOMER_ADDRESS_CREATE_MUTATION,
+  CUSTOMER_ADDRESS_UPDATE_MUTATION,
+  CUSTOMER_ADDRESS_DELETE_MUTATION,
 } from './queries/customer';
 import type {
   Cart, Collection, Product, ShopifyConnection,
@@ -184,4 +189,76 @@ export async function getCustomer(accessToken: string): Promise<Customer | null>
     });
     return data.customer;
   } catch { return null; }
+}
+
+export async function recoverCustomer(email: string): Promise<CustomerUserError[]> {
+  const data = await shopifyFetch<{
+    customerRecover: { customerUserErrors: CustomerUserError[] };
+  }>({
+    query: CUSTOMER_RECOVER_MUTATION,
+    variables: { email },
+  });
+  return data.customerRecover.customerUserErrors;
+}
+
+export async function updateCustomer(
+  accessToken: string,
+  customer: { firstName?: string; lastName?: string; email?: string; phone?: string; password?: string; acceptsMarketing?: boolean },
+): Promise<{ customer: Customer | null; errors: CustomerUserError[] }> {
+  const data = await shopifyFetch<{
+    customerUpdate: { customer: Customer | null; customerUserErrors: CustomerUserError[] };
+  }>({
+    query: CUSTOMER_UPDATE_MUTATION,
+    variables: { customerAccessToken: accessToken, customer },
+  });
+  return {
+    customer: data.customerUpdate.customer,
+    errors: data.customerUpdate.customerUserErrors,
+  };
+}
+
+type AddressInput = {
+  firstName?: string; lastName?: string;
+  address1?: string; address2?: string;
+  city?: string; province?: string; zip?: string; country?: string;
+  phone?: string;
+};
+
+export async function createCustomerAddress(
+  accessToken: string, address: AddressInput,
+): Promise<{ address: CustomerAddress | null; errors: CustomerUserError[] }> {
+  const data = await shopifyFetch<{
+    customerAddressCreate: { customerAddress: CustomerAddress | null; customerUserErrors: CustomerUserError[] };
+  }>({
+    query: CUSTOMER_ADDRESS_CREATE_MUTATION,
+    variables: { customerAccessToken: accessToken, address },
+  });
+  return {
+    address: data.customerAddressCreate.customerAddress,
+    errors: data.customerAddressCreate.customerUserErrors,
+  };
+}
+
+export async function updateCustomerAddress(
+  accessToken: string, id: string, address: AddressInput,
+): Promise<CustomerUserError[]> {
+  const data = await shopifyFetch<{
+    customerAddressUpdate: { customerUserErrors: CustomerUserError[] };
+  }>({
+    query: CUSTOMER_ADDRESS_UPDATE_MUTATION,
+    variables: { customerAccessToken: accessToken, id, address },
+  });
+  return data.customerAddressUpdate.customerUserErrors;
+}
+
+export async function deleteCustomerAddress(
+  accessToken: string, id: string,
+): Promise<CustomerUserError[]> {
+  const data = await shopifyFetch<{
+    customerAddressDelete: { customerUserErrors: CustomerUserError[] };
+  }>({
+    query: CUSTOMER_ADDRESS_DELETE_MUTATION,
+    variables: { customerAccessToken: accessToken, id },
+  });
+  return data.customerAddressDelete.customerUserErrors;
 }
