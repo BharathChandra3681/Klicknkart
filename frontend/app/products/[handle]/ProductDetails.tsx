@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useEffect } from 'react';
 import Image from 'next/image';
 import { useCart } from '@/context/CartContext';
 import type { Product } from '@/lib/shopify/types';
@@ -19,6 +20,9 @@ export default function ProductDetails({ product }: { product: Product }) {
   const [selectedVariant, setSelectedVariant] = useState<Variant | undefined>(variants[0]);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
+  const [newTag, setNewTag] = useState('');
+  const [localTags, setLocalTags] = useState<string[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const { addItem, isLoading } = useCart();
 
@@ -37,6 +41,43 @@ export default function ProductDetails({ product }: { product: Product }) {
   }
 
   const currentImage = images[activeImg] ?? null;
+
+  // Merge server-side tags with client-side overrides (localStorage)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`product-tags-${product.id}`);
+      if (raw) setLocalTags(JSON.parse(raw));
+    } catch (e) {
+      // ignore
+    }
+    // admin mode: enable tag editing when localStorage flag is set or query param present
+    try {
+      const adminFlag = localStorage.getItem('klicknkart-admin');
+      const qp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('adminTagEdit') : null;
+      if (adminFlag === '1' || qp === '1') setIsAdmin(true);
+    } catch (e) {
+      // ignore
+    }
+  }, [product.id]);
+
+  // Do not show Shopify/server tags by default. Only show client-side tags
+  // (local overrides) to avoid displaying tags on every product.
+  const allTags = Array.from(new Set([...localTags]));
+
+  function addLocalTag(tag: string) {
+    const t = tag.trim();
+    if (!t) return;
+    const updated = Array.from(new Set([...localTags, t]));
+    setLocalTags(updated);
+    localStorage.setItem(`product-tags-${product.id}`, JSON.stringify(updated));
+    setNewTag('');
+  }
+
+  function removeLocalTag(tag: string) {
+    const updated = localTags.filter((t) => t !== tag);
+    setLocalTags(updated);
+    localStorage.setItem(`product-tags-${product.id}`, JSON.stringify(updated));
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -65,12 +106,19 @@ export default function ProductDetails({ product }: { product: Product }) {
           ) : (
             <span className="material-symbols-outlined text-8xl text-outline">inventory_2</span>
           )}
-          <div
-            className="absolute top-4 left-4 px-4 py-2 rounded-full border border-white/60 text-xs font-bold text-primary uppercase tracking-widest"
-            style={{ background: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(12px)' }}
-          >
-            Best Seller
-          </div>
+          {allTags.length > 0 && (
+            <div className="absolute top-4 left-4 flex flex-col gap-2">
+              {allTags.slice(0, 3).map((t) => (
+                <div
+                  key={t}
+                  className="px-3 py-1 rounded-full border border-white/60 text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2"
+                  style={{ background: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(12px)' }}
+                >
+                  <span>{t}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Thumbnails */}
@@ -110,6 +158,49 @@ export default function ProductDetails({ product }: { product: Product }) {
         >
           {product.title}
         </h1>
+
+        {/* Tags row + small tag manager */}
+        {/* Only display local/client-side tags. Show tag editor only to admins. */}
+        {allTags.length > 0 && (
+          <div className="flex items-center gap-3 flex-wrap">
+            {allTags.map((t) => (
+              <span
+                key={t}
+                className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-primary border border-white/30"
+                style={{ background: 'rgba(255,255,255,0.35)' }}
+              >
+                {t}
+                {localTags.includes(t) && isAdmin && (
+                  <button
+                    onClick={() => removeLocalTag(t)}
+                    className="ml-2 text-xs text-outline"
+                    aria-label={`Remove ${t}`}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {isAdmin && (
+          <div className="flex items-center gap-2 mt-2">
+            <input
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              placeholder="Add tag (e.g. Best Seller)"
+              className="px-3 py-1 rounded-lg text-sm bg-white/20 placeholder:text-on-surface-variant"
+            />
+            <button
+              onClick={() => addLocalTag(newTag)}
+              className="px-3 py-1 rounded-lg text-sm font-semibold text-primary"
+              style={{ background: 'rgba(219,225,255,0.6)' }}
+            >
+              Add tag (admin)
+            </button>
+          </div>
+        )}
 
         {/* Price row */}
         <div className="flex items-center gap-4 pb-5 border-b border-outline-variant/40">
