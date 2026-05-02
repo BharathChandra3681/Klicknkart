@@ -7,12 +7,24 @@ import type { Product } from '@/lib/shopify/types';
 
 export const revalidate = 60;
 
-const ICT_CATEGORIES = [
-  { icon: 'mouse', label: 'Wireless Mice', sub: 'Precision ergonomic designs', href: '/collections/ict-accessories' },
-  { icon: 'usb', label: 'Storage Media', sub: 'Flash drives & SSDs', href: '/collections/ict-accessories' },
-  { icon: 'settings_input_hdmi', label: 'Cables & Adapters', sub: 'High-speed connectivity', href: '/collections/ict-accessories' },
-  { icon: 'keyboard', label: 'Workstation Kits', sub: 'Keyboard & mouse bundles', href: '/collections/ict-accessories' },
-];
+const CATEGORY_ICONS: Record<string, string> = {
+  paper: 'description',
+  'pens-pencils': 'edit',
+  'files-folders': 'folder',
+  'envelopes-holders': 'mail',
+  'staplers-punches': 'push_pin',
+  batteries: 'battery_full',
+  'binders-clips': 'attach_file',
+  calculators: 'calculate',
+  'ict-accessories': 'devices',
+  'books-notes': 'menu_book',
+  'board-markers': 'draw',
+  'tapes-glue': 'content_paste',
+  'scissors-pins': 'content_cut',
+  'trays-dispensers': 'inbox',
+  'rulers-stamps-tissue': 'straighten',
+  'printer-toners': 'print',
+};
 
 function ProductCard({ product }: { product: Product }) {
   const price = product.priceRange.minVariantPrice;
@@ -63,7 +75,7 @@ function ProductCard({ product }: { product: Product }) {
 export default async function HomePage() {
   const [products, collections] = await Promise.all([
     getProducts(8),
-    getCollections(8),
+    getCollections(250),
   ]);
 
   const stationeryProducts = products.slice(0, 3);
@@ -117,26 +129,10 @@ export default async function HomePage() {
               </div>
             </div>
           )) : (
-            /* Placeholder cards when no products yet */
-            [
-              { title: 'A4 Premium Bond Paper', sub: 'Ream of 500 sheets, 80gsm', price: '$12.99', icon: 'description' },
-              { title: 'Titan Executive Fountain Pen', sub: 'Brushed silver, fine nib', price: '$45.00', icon: 'edit' },
-              { title: 'Modern Desk Organizer', sub: 'Stackable, matte black steel', price: '$24.95', icon: 'inventory_2' },
-            ].map((item) => (
-              <div key={item.title} className="glass-card rounded-xl p-4 group">
-                <div className="aspect-square bg-white rounded-lg mb-4 overflow-hidden flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[100px] text-outline-variant">{item.icon}</span>
-                </div>
-                <h3 className="font-bold text-primary mb-1">{item.title}</h3>
-                <p className="text-sm text-on-surface-variant mb-3">{item.sub}</p>
-                <div className="flex justify-between items-center">
-                  <span className="text-secondary font-bold">{item.price}</span>
-                  <button className="bg-primary text-white p-2 rounded-full hover:bg-secondary transition-colors">
-                    <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
-                  </button>
-                </div>
-              </div>
-            ))
+            <div className="col-span-full glass-card rounded-2xl p-10 text-center">
+              <span className="material-symbols-outlined text-[64px] text-outline-variant block mb-3">inventory_2</span>
+              <p className="text-on-surface-variant">No products are available in Shopify yet.</p>
+            </div>
           )}
         </div>
       </section>
@@ -166,27 +162,59 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ── ICT & Accessories ── */}
+      {/* ── Live Categories ── */}
       <section className="w-full py-16 mt-8" style={{ background: 'rgba(0,17,58,0.03)' }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col items-center text-center mb-12">
-            <span className="text-xs font-bold text-secondary uppercase tracking-widest mb-2">Digital Core</span>
-            <h2 className="text-[32px] font-semibold tracking-tight text-primary">Computer Hardware & ICT</h2>
-            <p className="text-base text-on-surface-variant max-w-2xl mt-2">Professional-grade peripherals and connectivity solutions for the modern workstation.</p>
+            <span className="text-xs font-bold text-secondary uppercase tracking-widest mb-2">Live catalog</span>
+            <h2 className="text-[32px] font-semibold tracking-tight text-primary">Shop every Shopify category</h2>
+            <p className="text-base text-on-surface-variant max-w-2xl mt-2">Tap any collection to open the live browse page with current products, tags, and pricing.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {ICT_CATEGORIES.map((item) => (
-              <div key={item.label} className="glass-card rounded-xl p-6 flex flex-col items-center text-center">
-                <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4" style={{ background: 'rgba(0,17,58,0.08)' }}>
-                  <span className="material-symbols-outlined text-[40px] text-primary">{item.icon}</span>
-                </div>
-                <h3 className="font-bold text-primary">{item.label}</h3>
-                <p className="text-xs text-on-surface-variant mt-1 mb-4">{item.sub}</p>
-                <Link href={item.href} className="text-secondary text-sm font-bold flex items-center gap-1">
-                  Shop Now <span className="material-symbols-outlined text-sm">arrow_forward</span>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+            {collections.length > 0 ? collections.map((collection) => {
+              const image = collection.image ?? collection.products.edges[0]?.node.featuredImage ?? null;
+              const icon = CATEGORY_ICONS[collection.handle] ?? 'category';
+
+              return (
+                <Link
+                  key={collection.id}
+                  href={`/collections/${collection.handle}`}
+                  className="group glass-card rounded-xl overflow-hidden flex flex-col"
+                >
+                  <div className="relative aspect-square overflow-hidden bg-surface-container-low">
+                    {image ? (
+                      <Image
+                        src={image.url}
+                        alt={image.altText ?? collection.title}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-500"
+                        sizes="(max-width: 640px) 50vw, 25vw"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center bg-primary-fixed/20">
+                        <span className="material-symbols-outlined text-5xl text-secondary">{icon}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-4">
+                    <p className="font-bold text-on-surface group-hover:text-secondary transition-colors">{collection.title}</p>
+                    {collection.description && (
+                      <p className="text-xs text-on-surface-variant mt-1 line-clamp-2">{collection.description}</p>
+                    )}
+                    <p className="text-xs text-secondary font-semibold mt-2 flex items-center gap-1">
+                      Shop now <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                    </p>
+                  </div>
                 </Link>
+              );
+            }) : (
+              <div className="col-span-full glass-card rounded-2xl p-10 text-center">
+                <span className="material-symbols-outlined text-[64px] text-outline-variant block mb-3">category</span>
+                <p className="text-on-surface-variant">No Shopify collections are available yet.</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </section>
