@@ -18,19 +18,17 @@ const GLASS = {
 } as const;
 
 export default function EditProfilePage() {
-  const router  = useRouter();
-  const { customer, loading, updateProfile } = useCustomer();
+  const router   = useRouter();
+  const { customer, loading, refreshCustomer } = useCustomer();
 
   const [firstName, setFirstName] = useState('');
   const [lastName,  setLastName]  = useState('');
   const [email,     setEmail]     = useState('');
   const [phone,     setPhone]     = useState('');
-  const [newPass,   setNewPass]   = useState('');
-  const [confirmPass, setConfirmPass] = useState('');
 
-  const [saving,   setSaving]  = useState(false);
-  const [error,    setError]   = useState('');
-  const [success,  setSuccess] = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState('');
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     if (!loading && !customer) router.replace('/account/login');
@@ -39,7 +37,7 @@ export default function EditProfilePage() {
   useEffect(() => {
     if (customer) {
       setFirstName(customer.firstName ?? '');
-      setLastName(customer.lastName  ?? '');
+      setLastName(customer.lastName   ?? '');
       setEmail(customer.email);
       setPhone(customer.phone ?? '');
     }
@@ -56,27 +54,27 @@ export default function EditProfilePage() {
     e.preventDefault();
     setError('');
     setSuccess(false);
-
-    if (newPass && newPass !== confirmPass) {
-      setError('Passwords do not match.');
-      return;
-    }
-    if (newPass && newPass.length < 5) {
-      setError('Password must be at least 5 characters.');
-      return;
-    }
-
     setSaving(true);
-    try {
-      const input: Record<string, string> = { firstName, lastName, email, phone };
-      if (newPass) input.password = newPass;
 
-      const errors = await updateProfile(input);
-      if (errors.length > 0) setError(errors[0].message);
-      else {
+    try {
+      const body: Record<string, string> = {};
+      if (firstName) body.firstName    = firstName;
+      if (lastName)  body.lastName     = lastName;
+      if (email)     body.emailAddress = email;
+      if (phone)     body.phoneNumber  = phone;
+
+      const res  = await fetch('/api/auth/update', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+
+      if (json.errors?.length) {
+        setError(json.errors[0].message ?? 'Update failed.');
+      } else {
         setSuccess(true);
-        setNewPass('');
-        setConfirmPass('');
+        await refreshCustomer();
         setTimeout(() => router.push('/account'), 1500);
       }
     } catch {
@@ -129,23 +127,24 @@ export default function EditProfilePage() {
               </div>
             </div>
 
-            {/* Change password */}
+            {/* Password note */}
             <div className="rounded-2xl p-6" style={GLASS}>
               <h2 className="text-base font-bold text-primary mb-1 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[20px] text-secondary">lock</span>
                 Change Password
               </h2>
-              <p className="text-xs text-on-surface-variant mb-5">Leave blank to keep your current password.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelCls}>New Password</label>
-                  <input type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)} className={inputCls} placeholder="Min. 5 characters" minLength={5} />
-                </div>
-                <div>
-                  <label className={labelCls}>Confirm Password</label>
-                  <input type="password" value={confirmPass} onChange={(e) => setConfirmPass(e.target.value)} className={inputCls} placeholder="Repeat new password" />
-                </div>
-              </div>
+              <p className="text-sm text-on-surface-variant mt-2">
+                Password changes are managed through Shopify. Visit your{' '}
+                <a
+                  href={`https://shopify.com/authentication/${process.env.NEXT_PUBLIC_SHOPIFY_SHOP_ID ?? ''}/account`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-secondary font-semibold hover:underline"
+                >
+                  Shopify account settings
+                </a>{' '}
+                to update your password.
+              </p>
             </div>
 
             {/* Error / success */}

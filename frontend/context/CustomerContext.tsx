@@ -8,36 +8,24 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import {
-  getCustomer,
-  loginCustomer,
-  logoutCustomer,
-  createCustomer,
-  updateCustomer,
-} from '@/lib/shopify';
 import type { Customer, CustomerUserError } from '@/lib/shopify/types';
-
-const TOKEN_KEY   = 'shopify_customer_token';
-const EXPIRES_KEY = 'shopify_customer_token_expires';
 
 type CustomerContextValue = {
   customer: Customer | null;
   loading: boolean;
+  login: () => void;               // redirects to Shopify OAuth
+  logout: () => void;              // redirects to /api/auth/logout
+  refreshCustomer: () => Promise<void>;
+  // Legacy stubs kept so existing pages that import these don't break at compile time
   token: string | null;
-  login: (email: string, password: string) => Promise<CustomerUserError[]>;
   register: (input: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    password: string;
-    acceptsMarketing?: boolean;
+    firstName: string; lastName: string; email: string;
+    password: string; acceptsMarketing?: boolean;
   }) => Promise<CustomerUserError[]>;
-  logout: () => Promise<void>;
   updateProfile: (input: {
     firstName?: string; lastName?: string;
     email?: string; phone?: string; password?: string;
   }) => Promise<CustomerUserError[]>;
-  refreshCustomer: () => Promise<void>;
 };
 
 const CustomerContext = createContext<CustomerContextValue | null>(null);
@@ -45,88 +33,65 @@ const CustomerContext = createContext<CustomerContextValue | null>(null);
 export function CustomerProvider({ children }: { children: ReactNode }) {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading]   = useState(true);
-  const [token, setToken]       = useState<string | null>(null);
+
+  // Fetch customer from our server-side /api/auth/me route (uses httpOnly cookies)
+  const refreshCustomer = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (res.ok) {
+        const { customer: c } = await res.json();
+        setCustomer(c ?? null);
+      } else {
+        setCustomer(null);
+      }
+    } catch {
+      setCustomer(null);
+    }
+  }, []);
 
   useEffect(() => {
-    const storedToken   = localStorage.getItem(TOKEN_KEY);
-    const storedExpires = localStorage.getItem(EXPIRES_KEY);
+    refreshCustomer().finally(() => setLoading(false));
+  }, [refreshCustomer]);
 
-    if (!storedToken) { setLoading(false); return; }
-
-    // Token expiry check
-    if (storedExpires && new Date(storedExpires) <= new Date()) {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(EXPIRES_KEY);
-      setLoading(false);
-      return;
-    }
-
-    setToken(storedToken);
-    getCustomer(storedToken)
-      .then((c) => setCustomer(c))
-      .catch(() => {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(EXPIRES_KEY);
-      })
-      .finally(() => setLoading(false));
+  // Redirect to Shopify OAuth — handled server-side
+  const login = useCallback(() => {
+    window.location.href = '/api/auth';
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { accessToken, errors } = await loginCustomer(email, password);
-    if (accessToken) {
-      localStorage.setItem(TOKEN_KEY,   accessToken.accessToken);
-      localStorage.setItem(EXPIRES_KEY, accessToken.expiresAt);
-      setToken(accessToken.accessToken);
-      const c = await getCustomer(accessToken.accessToken);
-      setCustomer(c);
-    }
-    return errors;
+  // Redirect to our logout route which clears cookies + goes to Shopify logout
+  const logout = useCallback(() => {
+    setCustomer(null);
+    window.location.href = '/api/auth/logout';
   }, []);
 
-  const register = useCallback(async (input: {
+  // ── Legacy stubs ─────────────────────────────────────────────────────────────
+  // These existed in the Storefront-API version of the context.
+  // They are no-ops now that everything flows through OAuth; kept so existing
+  // pages that reference them continue to compile without changes.
+  const register = useCallback(async (_input: {
     firstName: string; lastName: string; email: string;
     password: string; acceptsMarketing?: boolean;
-  }) => {
-    const { errors } = await createCustomer(input);
-    if (errors.length === 0) {
-      return login(input.email, input.password);
-    }
-    return errors;
-  }, [login]);
-
-  const logout = useCallback(async () => {
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    if (storedToken) {
-      await logoutCustomer(storedToken).catch(() => {});
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(EXPIRES_KEY);
-    }
-    setToken(null);
-    setCustomer(null);
+  }): Promise<CustomerUserError[]> => {
+    // Redirect to the same OAuth flow — Shopify handles account creation there
+    window.location.href = '/api/auth';
+    return [];
   }, []);
 
-  const updateProfile = useCallback(async (input: {
+  const updateProfile = useCallback(async (_input: {
     firstName?: string; lastName?: string;
     email?: string; phone?: string; password?: string;
-  }) => {
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    if (!storedToken) return [{ code: 'UNIDENTIFIED_CUSTOMER', field: null, message: 'Not logged in' }];
-    const { customer: updated, errors } = await updateCustomer(storedToken, input);
-    if (errors.length === 0 && updated) {
-      setCustomer((prev) => prev ? { ...prev, ...updated } : updated);
-    }
-    return errors;
-  }, []);
-
-  const refreshCustomer = useCallback(async () => {
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    if (!storedToken) return;
-    const c = await getCustomer(storedToken);
-    setCustomer(c);
+  }): Promise<CustomerUserError[]> => {
+    // Profile updates are done via Customer Account API GraphQL directly
+    // (handled in /account/edit/page.tsx using the access token from /api/auth/me)
+    return [{ code: 'NOT_SUPPORTED', field: null, message: 'Use the account edit page.' }];
   }, []);
 
   return (
-    <CustomerContext.Provider value={{ customer, loading, token, login, register, logout, updateProfile, refreshCustomer }}>
+    <CustomerContext.Provider value={{
+      customer, loading, token: null,
+      login, logout, refreshCustomer,
+      register, updateProfile,
+    }}>
       {children}
     </CustomerContext.Provider>
   );

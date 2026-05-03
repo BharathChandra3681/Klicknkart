@@ -5,11 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import { useCustomer } from '@/context/CustomerContext';
-import {
-  createCustomerAddress,
-  updateCustomerAddress,
-  deleteCustomerAddress,
-} from '@/lib/shopify';
 import type { CustomerOrder, CustomerAddress } from '@/lib/shopify/types';
 
 type Tab = 'profile' | 'orders' | 'addresses';
@@ -41,7 +36,7 @@ function formatStatus(status: string) {
 
 export default function AccountPage() {
   const router = useRouter();
-  const { customer, loading, logout, token, refreshCustomer } = useCustomer();
+  const { customer, loading, logout, refreshCustomer } = useCustomer();
   const [activeTab, setActiveTab] = useState<Tab>('profile');
 
   useEffect(() => {
@@ -92,7 +87,8 @@ export default function AccountPage() {
               })}
             </nav>
             <div className="mt-4 pt-4 border-t border-outline-variant/30">
-              <button onClick={() => { logout(); router.push('/'); }}
+              <button
+                onClick={() => { logout(); }}
                 className="flex items-center gap-3 px-4 py-3 rounded-lg text-error hover:bg-error-container/20 transition-colors text-base w-full">
                 <span className="material-symbols-outlined text-[20px]"
                   style={{ fontVariationSettings: "'wght' 300" }}>logout</span>
@@ -172,7 +168,6 @@ export default function AccountPage() {
           {/* ── Addresses tab ── */}
           {activeTab === 'addresses' && (
             <AddressesTab
-              token={token}
               addresses={customer.addresses.edges.map((e) => e.node)}
               onRefresh={refreshCustomer}
             />
@@ -198,11 +193,9 @@ const BLANK: AddressForm = {
 };
 
 function AddressesTab({
-  token,
   addresses,
   onRefresh,
 }: {
-  token: string | null;
   addresses: CustomerAddress[];
   onRefresh: () => Promise<void>;
 }) {
@@ -230,14 +223,18 @@ function AddressesTab({
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!token) return;
     setSaving(true);
     setError('');
     try {
-      const errors = editId
-        ? await updateCustomerAddress(token, editId, form)
-        : (await createCustomerAddress(token, form)).errors;
-      if (errors.length > 0) { setError(errors[0].message); return; }
+      const url    = editId ? `/api/auth/addresses/${encodeURIComponent(editId)}` : '/api/auth/addresses';
+      const method = editId ? 'PUT' : 'POST';
+      const res    = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (json.errors?.length) { setError(json.errors[0].message); return; }
       await onRefresh();
       setShowForm(false);
     } catch {
@@ -248,10 +245,9 @@ function AddressesTab({
   }
 
   async function handleDelete(id: string) {
-    if (!token) return;
     setDeleting(id);
     try {
-      await deleteCustomerAddress(token, id);
+      await fetch(`/api/auth/addresses/${encodeURIComponent(id)}`, { method: 'DELETE' });
       await onRefresh();
     } finally {
       setDeleting(null);
@@ -277,7 +273,6 @@ function AddressesTab({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Address cards */}
       {addresses.length === 0 && !showForm && (
         <div className="rounded-xl p-12 text-center" style={GLASS}>
           <span className="material-symbols-outlined text-5xl text-outline mb-3 block">location_on</span>
@@ -317,7 +312,6 @@ function AddressesTab({
         </div>
       )}
 
-      {/* Add / Edit form */}
       {showForm ? (
         <form onSubmit={handleSave} className="rounded-2xl p-6 flex flex-col gap-4"
           style={{ background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(40px)', border: '1px solid rgba(255,255,255,0.7)' }}>

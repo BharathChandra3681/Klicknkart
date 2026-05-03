@@ -28,7 +28,7 @@ import {
 } from './queries/customer';
 import type {
   Cart, Collection, Product, ShopifyConnection,
-  Customer, CustomerAccessToken, CustomerUserError,
+  Customer, CustomerAccessToken, CustomerUserError, CustomerAddress,
 } from './types';
 
 // ── Products ─────────────────────────────────────────────────────────────────
