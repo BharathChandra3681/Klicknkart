@@ -5,7 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import { useCustomer } from '@/context/CustomerContext';
-import type { CustomerOrder } from '@/lib/shopify/types';
+import {
+  createCustomerAddress,
+  updateCustomerAddress,
+  deleteCustomerAddress,
+} from '@/lib/shopify';
+import type { CustomerOrder, CustomerAddress } from '@/lib/shopify/types';
 
 type Tab = 'profile' | 'orders' | 'addresses';
 
@@ -36,13 +41,11 @@ function formatStatus(status: string) {
 
 export default function AccountPage() {
   const router = useRouter();
-  const { customer, loading, logout } = useCustomer();
+  const { customer, loading, logout, token, refreshCustomer } = useCustomer();
   const [activeTab, setActiveTab] = useState<Tab>('profile');
 
   useEffect(() => {
-    if (!loading && !customer) {
-      router.replace('/account/login');
-    }
+    if (!loading && !customer) router.replace('/account/login');
   }, [loading, customer, router]);
 
   if (loading) {
@@ -67,7 +70,7 @@ export default function AccountPage() {
 
   return (
     <>
-      <main className="flex-grow w-full max-w-[1920px] mx-auto px-16 py-12 flex flex-col md:flex-row gap-6">
+      <main className="flex-grow w-full max-w-[1920px] mx-auto px-6 lg:px-16 py-12 flex flex-col md:flex-row gap-6">
         {/* Sidebar */}
         <aside className="w-full md:w-[280px] flex-shrink-0">
           <div className="rounded-xl p-6 flex flex-col gap-1 sticky top-24" style={GLASS}>
@@ -103,9 +106,9 @@ export default function AccountPage() {
         <section className="flex-grow flex flex-col gap-6">
           <h1 className="text-[32px] font-semibold leading-tight tracking-tight text-primary">Account Profile</h1>
 
+          {/* ── Profile tab ── */}
           {activeTab === 'profile' && (
             <>
-              {/* Profile card */}
               <div className="rounded-xl p-6" style={GLASS}>
                 <div className="flex items-start justify-between mb-6">
                   <div>
@@ -118,7 +121,6 @@ export default function AccountPage() {
                     Edit Profile
                   </Link>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-outline-variant/30 pt-6">
                   <div className="flex flex-col gap-1">
                     <span className="text-[12px] font-bold tracking-widest uppercase text-on-surface-variant">Full Name</span>
@@ -136,8 +138,7 @@ export default function AccountPage() {
                     <span className="text-[12px] font-bold tracking-widest uppercase text-on-surface-variant">Default Shipping Address</span>
                     {addr ? (
                       <span className="text-base text-primary">
-                        {[addr.address1, addr.address2, addr.city, addr.province, addr.zip, addr.country]
-                          .filter(Boolean).join(', ')}
+                        {[addr.address1, addr.address2, addr.city, addr.province, addr.zip, addr.country].filter(Boolean).join(', ')}
                       </span>
                     ) : (
                       <span className="text-base text-on-surface-variant">No address saved</span>
@@ -145,8 +146,6 @@ export default function AccountPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Recent orders */}
               {orders.length > 0 && (
                 <>
                   <h2 className="text-[20px] font-semibold text-primary mt-2">Recent Activity</h2>
@@ -156,6 +155,7 @@ export default function AccountPage() {
             </>
           )}
 
+          {/* ── Orders tab ── */}
           {activeTab === 'orders' && (
             orders.length === 0 ? (
               <div className="rounded-xl p-12 text-center" style={GLASS}>
@@ -169,25 +169,13 @@ export default function AccountPage() {
             )
           )}
 
+          {/* ── Addresses tab ── */}
           {activeTab === 'addresses' && (
-            <div className="rounded-xl p-8" style={GLASS}>
-              {customer.addresses.edges.length === 0 ? (
-                <div className="text-center py-8">
-                  <span className="material-symbols-outlined text-5xl text-outline mb-3 block">location_on</span>
-                  <p className="text-on-surface-variant">No saved addresses yet.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {customer.addresses.edges.map(({ node: a }) => (
-                    <div key={a.id} className="rounded-xl p-5 border border-outline-variant/30 bg-surface-container-low/50">
-                      <p className="text-base text-primary">
-                        {[a.address1, a.address2, a.city, a.province, a.zip, a.country].filter(Boolean).join(', ')}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <AddressesTab
+              token={token}
+              addresses={customer.addresses.edges.map((e) => e.node)}
+              onRefresh={refreshCustomer}
+            />
           )}
         </section>
       </main>
@@ -196,18 +184,194 @@ export default function AccountPage() {
   );
 }
 
+// ── Addresses Tab ─────────────────────────────────────────────────────────────
+
+type AddressForm = {
+  firstName: string; lastName: string;
+  address1: string; address2: string;
+  city: string; province: string; zip: string; country: string; phone: string;
+};
+
+const BLANK: AddressForm = {
+  firstName: '', lastName: '', address1: '', address2: '',
+  city: '', province: '', zip: '', country: '', phone: '',
+};
+
+function AddressesTab({
+  token,
+  addresses,
+  onRefresh,
+}: {
+  token: string | null;
+  addresses: CustomerAddress[];
+  onRefresh: () => Promise<void>;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [editId,   setEditId]   = useState<string | null>(null);
+  const [form,     setForm]     = useState<AddressForm>(BLANK);
+  const [saving,   setSaving]   = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error,    setError]    = useState('');
+
+  function openAdd() { setForm(BLANK); setEditId(null); setError(''); setShowForm(true); }
+
+  function openEdit(a: CustomerAddress) {
+    setForm({
+      firstName: a.firstName ?? '', lastName: a.lastName ?? '',
+      address1:  a.address1  ?? '', address2: a.address2 ?? '',
+      city:      a.city      ?? '', province: a.province ?? '',
+      zip:       a.zip       ?? '', country:  a.country  ?? '',
+      phone:     a.phone     ?? '',
+    });
+    setEditId(a.id);
+    setError('');
+    setShowForm(true);
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    setSaving(true);
+    setError('');
+    try {
+      const errors = editId
+        ? await updateCustomerAddress(token, editId, form)
+        : (await createCustomerAddress(token, form)).errors;
+      if (errors.length > 0) { setError(errors[0].message); return; }
+      await onRefresh();
+      setShowForm(false);
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!token) return;
+    setDeleting(id);
+    try {
+      await deleteCustomerAddress(token, id);
+      await onRefresh();
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  const inputCls = 'w-full px-4 py-3 rounded-xl border border-outline-variant/50 bg-white/50 text-on-surface text-sm focus:outline-none focus:border-secondary transition-colors';
+  const labelCls = 'block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2';
+
+  function field(label: string, key: keyof AddressForm, placeholder = '') {
+    return (
+      <div>
+        <label className={labelCls}>{label}</label>
+        <input
+          value={form[key]}
+          onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+          className={inputCls}
+          placeholder={placeholder}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Address cards */}
+      {addresses.length === 0 && !showForm && (
+        <div className="rounded-xl p-12 text-center" style={GLASS}>
+          <span className="material-symbols-outlined text-5xl text-outline mb-3 block">location_on</span>
+          <p className="text-on-surface-variant">No saved addresses yet.</p>
+        </div>
+      )}
+
+      {addresses.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {addresses.map((a) => (
+            <div key={a.id} className="rounded-xl p-5 flex flex-col gap-3"
+              style={{ background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.7)' }}>
+              {(a.firstName || a.lastName) && (
+                <p className="font-semibold text-primary text-sm">
+                  {[a.firstName, a.lastName].filter(Boolean).join(' ')}
+                </p>
+              )}
+              <p className="text-sm text-on-surface-variant leading-relaxed">
+                {[a.address1, a.address2, a.city, a.province, a.zip, a.country].filter(Boolean).join(', ')}
+              </p>
+              {a.phone && <p className="text-xs text-on-surface-variant">{a.phone}</p>}
+              <div className="flex gap-2 mt-1">
+                <button onClick={() => openEdit(a)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-secondary border border-secondary/30 hover:bg-secondary/5 transition-colors">
+                  <span className="material-symbols-outlined text-[14px]">edit</span> Edit
+                </button>
+                <button onClick={() => handleDelete(a.id)} disabled={deleting === a.id}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-error border border-error/30 hover:bg-error-container/20 transition-colors disabled:opacity-50">
+                  {deleting === a.id
+                    ? <span className="material-symbols-outlined text-[14px] animate-spin">autorenew</span>
+                    : <span className="material-symbols-outlined text-[14px]">delete</span>}
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add / Edit form */}
+      {showForm ? (
+        <form onSubmit={handleSave} className="rounded-2xl p-6 flex flex-col gap-4"
+          style={{ background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(40px)', border: '1px solid rgba(255,255,255,0.7)' }}>
+          <h3 className="font-bold text-primary text-base">
+            {editId ? 'Edit Address' : 'New Address'}
+          </h3>
+          {error && (
+            <div className="rounded-xl px-4 py-3 text-sm"
+              style={{ background: '#ffdad6', color: '#ba1a1a', border: '1px solid rgba(186,26,26,0.2)' }}>
+              {error}
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {field('First Name',         'firstName', 'Jane')}
+            {field('Last Name',          'lastName',  'Doe')}
+            {field('Address Line 1',     'address1',  '123 Main Street')}
+            {field('Address Line 2',     'address2',  'Apt, Suite (optional)')}
+            {field('City',               'city',      'Nairobi')}
+            {field('Province / County',  'province',  'Nairobi County')}
+            {field('ZIP / Postal Code',  'zip',       '00100')}
+            {field('Country',            'country',   'Kenya')}
+            <div className="sm:col-span-2">{field('Phone', 'phone', '+254 700 000 000')}</div>
+          </div>
+          <div className="flex gap-3 mt-2">
+            <button type="submit" disabled={saving}
+              className="flex items-center gap-2 px-6 py-3 rounded-xl text-white font-bold text-sm transition-all disabled:opacity-60"
+              style={{ background: '#0058bc', boxShadow: '0 4px 14px rgba(0,88,188,0.2)' }}>
+              {saving
+                ? <span className="material-symbols-outlined animate-spin text-[18px]">autorenew</span>
+                : <span className="material-symbols-outlined text-[18px]">save</span>}
+              {saving ? 'Saving…' : 'Save Address'}
+            </button>
+            <button type="button" onClick={() => setShowForm(false)}
+              className="px-6 py-3 rounded-xl font-semibold text-primary border border-outline-variant hover:bg-surface-container transition-colors text-sm">
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button onClick={openAdd}
+          className="flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-secondary border border-secondary/30 hover:bg-secondary/5 transition-colors text-sm w-fit">
+          <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
+          Add New Address
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Orders Table ──────────────────────────────────────────────────────────────
+
 function OrdersTable({ orders }: { orders: CustomerOrder[] }) {
   return (
-    <div className="rounded-xl overflow-hidden" style={{
-      background: 'rgba(255,255,255,0.4)',
-      backdropFilter: 'blur(40px)',
-      WebkitBackdropFilter: 'blur(40px)',
-      borderTop: '1px solid rgba(255,255,255,0.8)',
-      borderLeft: '1px solid rgba(255,255,255,0.8)',
-      borderRight: '1px solid rgba(0,35,102,0.1)',
-      borderBottom: '1px solid rgba(0,35,102,0.1)',
-      boxShadow: '0 8px 32px 0 rgba(0,35,102,0.05)',
-    }}>
+    <div className="rounded-xl overflow-hidden" style={GLASS}>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -223,7 +387,7 @@ function OrdersTable({ orders }: { orders: CustomerOrder[] }) {
               const date = new Date(order.processedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
               return (
                 <tr key={order.id}
-                  className={`hover:bg-surface-variant/10 transition-colors cursor-pointer ${i < orders.length - 1 ? 'border-b border-outline-variant/10' : ''}`}>
+                  className={`hover:bg-surface-variant/10 transition-colors ${i < orders.length - 1 ? 'border-b border-outline-variant/10' : ''}`}>
                   <td className="py-4 px-6 font-medium">#{order.orderNumber}</td>
                   <td className="py-4 px-6">{date}</td>
                   <td className="py-4 px-6">
