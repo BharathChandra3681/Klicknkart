@@ -90,9 +90,9 @@ export default function LoginPage() {
                 <label htmlFor="password" style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#757682' }}>
                   Password
                 </label>
-                <a href="#" style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0058bc', textDecoration: 'none' }}>
+                <Link href="/account/forgot-password" style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0058bc', textDecoration: 'none' }}>
                   Forgot Password?
-                </a>
+                </Link>
               </div>
               <div style={{ position: 'relative' }}>
                 <span className="material-symbols-outlined" style={iconStyle}>lock</span>

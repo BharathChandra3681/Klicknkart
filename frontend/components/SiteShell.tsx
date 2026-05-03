@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { CartProvider } from '@/context/CartContext';
 import Navbar from './Navbar';
 
-const AUTH_PATHS = ['/account/login', '/account/register'];
+const AUTH_PATHS = ['/account/login', '/account/register', '/account/forgot-password'];
 
 export default function SiteShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
