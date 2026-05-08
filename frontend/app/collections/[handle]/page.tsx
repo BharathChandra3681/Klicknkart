@@ -18,34 +18,56 @@ const SORT_OPTIONS = [
 
 export async function generateStaticParams() {
   const collections = await getCollections(250);
-  return collections.map((c) => ({ handle: c.handle }));
+  return collections.map((collection) => ({ handle: collection.handle }));
 }
 
-type SearchParams = { after?: string | string[]; sort?: string | string[]; tag?: string | string[] };
-type Props = { params: Promise<{ handle: string }>; searchParams?: Promise<SearchParams> };
+type SearchParams = {
+  page?: string | string[];
+  sort?: string | string[];
+  tag?: string | string[];
+};
 
-function firstValue(v: string | string[] | undefined) {
-  return Array.isArray(v) ? v[0] : v;
+type Props = {
+  params: Promise<{ handle: string }>;
+  searchParams?: Promise<SearchParams>;
+};
+
+function firstValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
-function sortProducts<T extends { title: string; priceRange: { minVariantPrice: { amount: string } } }>(items: T[], sort: string) {
-  const list = [...items];
+function parsePage(value: string | string[] | undefined) {
+  const page = Number.parseInt(firstValue(value) ?? '1', 10);
+  return Number.isFinite(page) && page > 0 ? page : 1;
+}
+
+function sortProducts<T extends { title: string; priceRange: { minVariantPrice: { amount: string } } }>(products: T[], sort: string) {
+  const items = [...products];
+
   switch (sort) {
-    case 'title-asc':  return list.sort((a, b) => a.title.localeCompare(b.title));
-    case 'title-desc': return list.sort((a, b) => b.title.localeCompare(a.title));
-    case 'price-asc':  return list.sort((a, b) => parseFloat(a.priceRange.minVariantPrice.amount) - parseFloat(b.priceRange.minVariantPrice.amount));
-    case 'price-desc': return list.sort((a, b) => parseFloat(b.priceRange.minVariantPrice.amount) - parseFloat(a.priceRange.minVariantPrice.amount));
-    default:           return list;
+    case 'title-asc':
+      return items.sort((left, right) => left.title.localeCompare(right.title));
+    case 'title-desc':
+      return items.sort((left, right) => right.title.localeCompare(left.title));
+    case 'price-asc':
+      return items.sort((left, right) => Number.parseFloat(left.priceRange.minVariantPrice.amount) - Number.parseFloat(right.priceRange.minVariantPrice.amount));
+    case 'price-desc':
+      return items.sort((left, right) => Number.parseFloat(right.priceRange.minVariantPrice.amount) - Number.parseFloat(left.priceRange.minVariantPrice.amount));
+    default:
+      return items;
   }
 }
 
-function buildHref(handle: string, params: { after?: string; sort?: string; tag?: string }) {
-  const p = new URLSearchParams();
-  if (params.after) p.set('after', params.after);
-  if (params.sort && params.sort !== 'relevance') p.set('sort', params.sort);
-  if (params.tag) p.set('tag', params.tag);
-  const qs = p.toString();
-  return `/collections/${handle}${qs ? `?${qs}` : ''}`;
+function getQueryHref(handle: string, current: { page: number; sort: string; tag: string }, updates: Partial<{ page: number; sort: string; tag: string }>) {
+  const next = { ...current, ...updates };
+  const params = new URLSearchParams();
+
+  if (next.page > 1) params.set('page', String(next.page));
+  if (next.sort && next.sort !== 'relevance') params.set('sort', next.sort);
+  if (next.tag) params.set('tag', next.tag);
+
+  const query = params.toString();
+  return query ? `/collections/${handle}?${query}` : `/collections/${handle}`;
 }
 
 export default async function CollectionPage({ params, searchParams }: Props) {
@@ -53,31 +75,29 @@ export default async function CollectionPage({ params, searchParams }: Props) {
     params,
     (searchParams ?? Promise.resolve({})) as Promise<SearchParams>,
   ]);
-
-  const after     = firstValue(query.after);
-  const sort      = firstValue(query.sort) ?? 'relevance';
-  const activeTag = firstValue(query.tag) ?? '';
-
-  const [result, collections] = await Promise.all([
-    getCollectionByHandle(handle, PAGE_SIZE, after),
+  const [collection, collections] = await Promise.all([
+    getCollectionByHandle(handle, 250),
     getCollections(250),
   ]);
 
-  if (!result) notFound();
+  if (!collection) notFound();
 
-  const { collection, hasNextPage, endCursor } = result;
-
-  const allProducts    = collection.products.edges.map((e) => e.node);
-  const filteredProducts = activeTag ? allProducts.filter((p) => p.tags.includes(activeTag)) : allProducts;
-  const products       = sortProducts(filteredProducts, sort);
-  const availableTags  = Array.from(new Set(allProducts.flatMap((p) => p.tags))).sort((a, b) => a.localeCompare(b));
-  const heroImage      = collection.image ?? collection.products.edges[0]?.node.featuredImage ?? null;
+  const page = parsePage(query.page);
+  const sort = firstValue(query.sort) ?? 'relevance';
+  const activeTag = firstValue(query.tag) ?? '';
+  const allProducts = collection.products.edges.map((edge) => edge.node);
+  const availableTags = Array.from(new Set(allProducts.flatMap((product) => product.tags))).sort((left, right) => left.localeCompare(right));
+  const filteredProducts = activeTag ? allProducts.filter((product) => product.tags.includes(activeTag)) : allProducts;
+  const sortedProducts = sortProducts(filteredProducts, sort);
+  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedProducts = sortedProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const heroImage = collection.image ?? collection.products.edges[0]?.node.featuredImage ?? null;
+  const activeCollection = collections.find((item) => item.handle === collection.handle);
 
   return (
     <>
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-10 lg:py-12">
-
-        {/* Breadcrumb */}
         <nav className="flex flex-wrap items-center gap-2 text-sm text-on-surface-variant mb-6">
           <Link href="/" className="hover:text-secondary transition-colors">Home</Link>
           <span className="material-symbols-outlined text-[14px]">chevron_right</span>
@@ -86,7 +106,6 @@ export default async function CollectionPage({ params, searchParams }: Props) {
           <span className="text-on-surface font-medium">{collection.title}</span>
         </nav>
 
-        {/* Hero */}
         <section className="relative overflow-hidden rounded-[28px] border border-white/60 bg-white/50 shadow-[0_18px_60px_rgba(0,35,102,0.08)] backdrop-blur-2xl">
           <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/65 to-primary-fixed/20" />
           <div className="relative grid gap-6 lg:grid-cols-[1.2fr_0.8fr] p-6 lg:p-8 items-center">
@@ -94,55 +113,67 @@ export default async function CollectionPage({ params, searchParams }: Props) {
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary-fixed/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                 Browse collection
               </div>
-              <h1 className="text-[clamp(2rem,4vw,3.25rem)] font-extrabold tracking-[-0.03em] text-primary leading-tight">
-                {collection.title}
-              </h1>
-              {collection.description && (
-                <p className="max-w-2xl text-base leading-relaxed text-on-surface-variant">
-                  {collection.description}
-                </p>
-              )}
-              <div className="flex flex-wrap items-center gap-3 text-sm text-on-surface-variant">
-                <span className="rounded-full bg-white/80 px-3 py-1 font-medium text-on-surface shadow-sm">
-                  {products.length} product{products.length !== 1 ? 's' : ''}{after ? ' this page' : ''}
-                </span>
-                {availableTags.length > 0 && (
-                  <span className="rounded-full bg-white/70 px-3 py-1 font-medium">{availableTags.length} tag filters</span>
+              <div>
+                <h1 className="text-[clamp(2rem,4vw,3.25rem)] font-extrabold tracking-[-0.03em] text-primary leading-tight">
+                  {collection.title}
+                </h1>
+                {collection.description && (
+                  <p className="mt-3 max-w-2xl text-base leading-relaxed text-on-surface-variant">
+                    {collection.description}
+                  </p>
                 )}
               </div>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-on-surface-variant">
+                <span className="rounded-full bg-white/80 px-3 py-1 font-medium text-on-surface shadow-sm">
+                  {filteredProducts.length} product{filteredProducts.length === 1 ? '' : 's'}
+                </span>
+                <span className="rounded-full bg-white/70 px-3 py-1 font-medium">{availableTags.length} live tag filters</span>
+                {activeCollection?.description ? (
+                  <span className="rounded-full bg-white/70 px-3 py-1 font-medium">Shopify powered</span>
+                ) : null}
+              </div>
             </div>
+
             <div className="relative h-[220px] overflow-hidden rounded-[24px] border border-white/70 bg-surface-container-low shadow-[0_16px_48px_rgba(0,35,102,0.08)]">
               {heroImage ? (
-                <Image src={heroImage.url} alt={heroImage.altText ?? collection.title} fill priority className="object-cover" sizes="(max-width: 1024px) 100vw, 40vw" />
+                <Image
+                  src={heroImage.url}
+                  alt={heroImage.altText ?? collection.title}
+                  fill
+                  priority
+                  className="object-cover"
+                  sizes="(max-width: 1024px) 100vw, 40vw"
+                />
               ) : (
                 <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary-fixed/35 via-white to-secondary-container/20">
                   <span className="material-symbols-outlined text-7xl text-primary/50">inventory_2</span>
                 </div>
               )}
+              <div className="absolute inset-0 bg-gradient-to-t from-primary/18 via-transparent to-transparent" />
             </div>
           </div>
         </section>
 
-        {/* Layout: sidebar + grid */}
         <section className="mt-6 grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
-
-          {/* Sidebar */}
           <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
             <div className="rounded-[24px] border border-white/60 bg-white/65 p-4 shadow-[0_12px_40px_rgba(0,35,102,0.06)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-outline">Filters</p>
-                <Link href={`/collections/${handle}`} className="text-xs font-semibold text-secondary hover:underline">Reset</Link>
+                <Link href={`/collections/${collection.handle}`} className="text-xs font-semibold text-secondary hover:underline">
+                  Reset
+                </Link>
               </div>
 
               <div className="mt-4 space-y-4">
-                {/* Collections list */}
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">Collections</p>
                   <div className="flex flex-wrap gap-2 xl:flex-col">
                     {collections.map((item) => {
-                      const active = item.handle === handle;
+                      const active = item.handle === collection.handle;
                       return (
-                        <Link key={item.id} href={`/collections/${item.handle}`}
+                        <Link
+                          key={item.id}
+                          href={`/collections/${item.handle}`}
                           className={`inline-flex items-center justify-between gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors xl:w-full xl:rounded-xl ${
                             active
                               ? 'border-primary bg-primary text-white shadow-sm'
@@ -159,85 +190,111 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                   </div>
                 </div>
 
-                {/* Tag filter */}
                 {availableTags.length > 0 && (
                   <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">Tags</p>
                     <div className="flex flex-wrap gap-2">
-                      <Link href={buildHref(handle, { sort })}
+                      <Link
+                        href={getQueryHref(collection.handle, { page: currentPage, sort, tag: activeTag }, { tag: '', page: 1 })}
                         className={`rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
-                          !activeTag ? 'border-primary bg-primary text-white' : 'border-outline-variant/40 bg-white/70 text-on-surface-variant hover:border-primary/30 hover:text-primary'
+                          activeTag
+                            ? 'border-outline-variant/40 bg-white/70 text-on-surface-variant hover:border-primary/30 hover:text-primary'
+                            : 'border-primary bg-primary text-white'
                         }`}
                       >
                         All
                       </Link>
-                      {availableTags.slice(0, 16).map((tag) => (
-                        <Link key={tag} href={buildHref(handle, { sort, tag: tag === activeTag ? '' : tag })}
-                          className={`rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
-                            tag === activeTag ? 'border-primary bg-primary text-white' : 'border-outline-variant/40 bg-white/70 text-on-surface-variant hover:border-primary/30 hover:text-primary'
-                          }`}
-                        >
-                          {tag}
-                        </Link>
-                      ))}
+                      {availableTags.slice(0, 16).map((tag) => {
+                        const active = tag === activeTag;
+                        return (
+                          <Link
+                            key={tag}
+                            href={getQueryHref(collection.handle, { page: currentPage, sort, tag: activeTag }, { tag, page: 1 })}
+                            className={`rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
+                              active
+                                ? 'border-primary bg-primary text-white'
+                                : 'border-outline-variant/40 bg-white/70 text-on-surface-variant hover:border-primary/30 hover:text-primary'
+                            }`}
+                          >
+                            {tag}
+                          </Link>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                {/* Sort */}
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">Sort by</p>
                   <div className="grid grid-cols-2 gap-2">
-                    {SORT_OPTIONS.map((opt) => (
-                      <Link key={opt.value} href={buildHref(handle, { sort: opt.value, tag: activeTag })}
-                        className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
-                          opt.value === sort ? 'border-primary bg-primary text-white' : 'border-outline-variant/40 bg-white/70 text-on-surface-variant hover:border-primary/30 hover:text-primary'
-                        }`}
-                      >
-                        {opt.label}
-                      </Link>
-                    ))}
+                    {SORT_OPTIONS.map((option) => {
+                      const active = option.value === sort;
+                      return (
+                        <Link
+                          key={option.value}
+                          href={getQueryHref(collection.handle, { page: currentPage, sort, tag: activeTag }, { sort: option.value, page: 1 })}
+                          className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                            active
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-outline-variant/40 bg-white/70 text-on-surface-variant hover:border-primary/30 hover:text-primary'
+                          }`}
+                        >
+                          {option.label}
+                        </Link>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             </div>
           </aside>
 
-          {/* Product grid + pagination */}
           <div className="space-y-4">
-            {/* Status bar */}
             <div className="rounded-[24px] border border-white/60 bg-white/60 p-4 shadow-[0_12px_40px_rgba(0,35,102,0.05)] backdrop-blur-xl">
-              <p className="text-sm text-on-surface-variant">
-                {sort === 'relevance'
-                  ? 'Showing products in collection order.'
-                  : `Sorted by ${SORT_OPTIONS.find((o) => o.value === sort)?.label ?? 'Relevance'}.`}
-                {activeTag && <span className="ml-2 font-semibold text-primary">Tag: {activeTag}</span>}
-              </p>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-outline">Browse</p>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    {sort === 'relevance' ? 'Showing live Shopify products in collection order.' : `Sorted by ${SORT_OPTIONS.find((option) => option.value === sort)?.label ?? 'Relevance'}.`}
+                  </p>
+                </div>
+                <div className="rounded-full bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
+                  Page {currentPage} of {totalPages}
+                </div>
+              </div>
             </div>
 
-            {/* Grid */}
-            {products.length === 0 ? (
+            {paginatedProducts.length === 0 ? (
               <div className="rounded-[28px] border border-white/60 bg-white/60 p-14 text-center shadow-[0_12px_40px_rgba(0,35,102,0.05)] backdrop-blur-xl">
                 <span className="material-symbols-outlined mb-4 block text-6xl text-outline">inventory_2</span>
                 <p className="text-lg font-semibold text-on-surface">No products match this filter.</p>
-                <Link href={`/collections/${handle}`}
-                  className="mt-5 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white">
+                <p className="mt-2 text-sm text-on-surface-variant">Try a different tag or reset the collection filters.</p>
+                <Link
+                  href={`/collections/${collection.handle}`}
+                  className="mt-5 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white"
+                >
                   Reset filters
                 </Link>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {products.map((product) => {
+                {paginatedProducts.map((product) => {
                   const price = product.priceRange.minVariantPrice;
                   const image = product.featuredImage;
-                  const tag   = product.tags[0] ?? collection.title;
+                  const tag = product.tags[0] ?? collection.title;
+
                   return (
-                    <Link key={product.id} href={`/products/${product.handle}`}
+                    <Link
+                      key={product.id}
+                      href={`/products/${product.handle}`}
                       className="group overflow-hidden rounded-[24px] border border-white/70 bg-white/70 shadow-[0_12px_36px_rgba(0,35,102,0.06)] backdrop-blur-xl transition-transform duration-300 hover:-translate-y-1"
                     >
                       <div className="relative aspect-[1.1] overflow-hidden bg-surface-container-low">
                         {image ? (
-                          <Image src={image.url} alt={image.altText ?? product.title} fill
+                          <Image
+                            src={image.url}
+                            alt={image.altText ?? product.title}
+                            fill
                             className="object-cover transition-transform duration-500 group-hover:scale-105"
                             sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
                           />
@@ -247,12 +304,15 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                           </div>
                         )}
                         {!product.availableForSale && (
-                          <span className="absolute left-3 top-3 rounded-full bg-on-surface/80 px-3 py-1 text-[11px] font-semibold text-white">Sold out</span>
+                          <span className="absolute left-3 top-3 rounded-full bg-on-surface/80 px-3 py-1 text-[11px] font-semibold text-white">
+                            Sold out
+                          </span>
                         )}
                         <span className="absolute right-3 top-3 rounded-full bg-white/85 px-3 py-1 text-[11px] font-semibold text-primary shadow-sm backdrop-blur">
                           {tag}
                         </span>
                       </div>
+
                       <div className="flex min-h-[180px] flex-col gap-3 p-4">
                         <div>
                           <h2 className="line-clamp-2 text-sm font-semibold leading-snug text-on-surface group-hover:text-primary">
@@ -264,11 +324,12 @@ export default async function CollectionPage({ params, searchParams }: Props) {
                             </p>
                           )}
                         </div>
+
                         <div className="mt-auto flex items-end justify-between gap-3">
                           <div>
                             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-outline">Price</p>
                             <p className="text-xl font-bold text-secondary">
-                              {price.currencyCode} {parseFloat(price.amount).toFixed(2)}
+                              {price.currencyCode} {Number.parseFloat(price.amount).toFixed(2)}
                             </p>
                           </div>
                           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white shadow-md transition-transform group-hover:scale-105">
@@ -282,25 +343,46 @@ export default async function CollectionPage({ params, searchParams }: Props) {
               </div>
             )}
 
-            {/* Pagination */}
-            {(after || hasNextPage) && (
-              <div className="flex items-center justify-center gap-3 pt-2">
-                {after && (
-                  <Link href={buildHref(handle, { sort, tag: activeTag })}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-outline-variant/40 bg-white/70 text-sm font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                    Back to start
-                  </Link>
-                )}
-                {hasNextPage && endCursor && (
-                  <Link href={buildHref(handle, { after: endCursor, sort, tag: activeTag })}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors shadow-sm"
-                  >
-                    Next page
-                    <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                  </Link>
-                )}
+            {totalPages > 1 && (
+              <div className="flex flex-wrap items-center justify-center gap-2 py-4">
+                <Link
+                  href={getQueryHref(collection.handle, { page: currentPage, sort, tag: activeTag }, { page: Math.max(1, currentPage - 1) })}
+                  className={`rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
+                    currentPage === 1
+                      ? 'pointer-events-none border-outline-variant/20 bg-white/50 text-outline/40'
+                      : 'border-outline-variant/30 bg-white/80 text-on-surface-variant hover:border-primary/30 hover:text-primary'
+                  }`}
+                >
+                  Prev
+                </Link>
+
+                {Array.from({ length: totalPages }, (_, index) => index + 1).slice(0, 5).map((item) => {
+                  const active = item === currentPage;
+                  return (
+                    <Link
+                      key={item}
+                      href={getQueryHref(collection.handle, { page: currentPage, sort, tag: activeTag }, { page: item })}
+                      className={`flex h-10 w-10 items-center justify-center rounded-full border text-sm font-semibold transition-colors ${
+                        active
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-outline-variant/30 bg-white/80 text-on-surface-variant hover:border-primary/30 hover:text-primary'
+                      }`}
+                    >
+                      {item}
+                    </Link>
+                  );
+                })}
+
+                <Link
+                  href={getQueryHref(collection.handle, { page: currentPage, sort, tag: activeTag }, { page: Math.min(totalPages, currentPage + 1) })}
+                  className={`rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
+                    currentPage === totalPages
+                      ? 'pointer-events-none border-outline-variant/20 bg-white/50 text-outline/40'
+                      : 'border-outline-variant/30 bg-white/80 text-on-surface-variant hover:border-primary/30 hover:text-primary'
+                  }`}
+                >
+                  Next
+                </Link>
               </div>
             )}
           </div>
