@@ -111,7 +111,14 @@ export default function CartPage() {
             <span>{total.currencyCode} {parseFloat(total.amount).toFixed(2)}</span>
           </div>
           <a
-            href={cart!.checkoutUrl}
+            href={`${cart!.checkoutUrl}`}
+            onClick={(e) => {
+              // Append return_to so Shopify redirects back after payment
+              const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+              const target = new URL(cart!.checkoutUrl);
+              target.searchParams.set('return_to', `${appUrl}/order/confirmed`);
+              (e.currentTarget as HTMLAnchorElement).href = target.toString();
+            }}
             className="w-full block text-center py-3 bg-secondary text-white rounded-xl font-semibold hover:bg-primary transition-colors btn-primary"
           >
             Proceed to Checkout
