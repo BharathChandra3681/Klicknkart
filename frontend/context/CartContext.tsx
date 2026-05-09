@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
 import {
@@ -14,6 +15,7 @@ import {
   addToCart,
   updateCartLine,
   removeFromCart,
+  updateCartBuyerIdentity,
 } from '@/lib/shopify';
 import type { Cart } from '@/lib/shopify/types';
 
@@ -31,18 +33,39 @@ const CartContext = createContext<CartContextValue | null>(null);
 
 const CART_ID_KEY = 'shopify_cart_id';
 
+async function fetchCustomerEmail(): Promise<string | null> {
+  try {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) return null;
+    const { customer } = await res.json();
+    return customer?.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [cart, setCart] = useState<Cart | null>(null);
+  const [cart, setCart]         = useState<Cart | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const linkedEmail = useRef<string | null>(null);
 
+  // Load cart from localStorage, then link customer if logged in
   useEffect(() => {
     const savedCartId = localStorage.getItem(CART_ID_KEY);
     if (!savedCartId) return;
+
     getCart(savedCartId)
-      .then((c) => {
-        if (c) setCart(c);
-        else localStorage.removeItem(CART_ID_KEY);
+      .then(async (c) => {
+        if (!c) { localStorage.removeItem(CART_ID_KEY); return; }
+        setCart(c);
+        // Link customer email to cart for address pre-fill at checkout
+        const email = await fetchCustomerEmail();
+        if (email && email !== linkedEmail.current) {
+          linkedEmail.current = email;
+          const updated = await updateCartBuyerIdentity(c.id, email).catch(() => c);
+          setCart(updated);
+        }
       })
       .catch(() => localStorage.removeItem(CART_ID_KEY));
   }, []);
@@ -51,6 +74,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (cart) return cart.id;
     const newCart = await createCart();
     localStorage.setItem(CART_ID_KEY, newCart.id);
+
+    // Link customer to newly created cart
+    const email = await fetchCustomerEmail();
+    if (email) {
+      linkedEmail.current = email;
+      const linked = await updateCartBuyerIdentity(newCart.id, email).catch(() => newCart);
+      setCart(linked);
+      return linked.id;
+    }
+
     setCart(newCart);
     return newCart.id;
   }, [cart]);

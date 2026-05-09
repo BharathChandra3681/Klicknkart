@@ -14,6 +14,7 @@ import {
   UPDATE_CART_MUTATION,
   REMOVE_FROM_CART_MUTATION,
   GET_CART_QUERY,
+  UPDATE_CART_BUYER_IDENTITY_MUTATION,
 } from './queries/cart';
 import {
   CUSTOMER_CREATE_MUTATION,
@@ -151,6 +152,17 @@ export async function removeFromCart(
     variables: { cartId, lineIds },
   });
   return data.cartLinesRemove.cart;
+}
+
+export async function updateCartBuyerIdentity(
+  cartId: string,
+  email: string,
+): Promise<Cart> {
+  const data = await shopifyFetch<{ cartBuyerIdentityUpdate: { cart: Cart } }>({
+    query: UPDATE_CART_BUYER_IDENTITY_MUTATION,
+    variables: { cartId, buyerIdentity: { email } },
+  });
+  return data.cartBuyerIdentityUpdate.cart;
 }
 
 // ── Customer Auth ─────────────────────────────────────────────────────────────
