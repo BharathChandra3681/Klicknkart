@@ -33,13 +33,22 @@ import type {
 
 // ── Products ─────────────────────────────────────────────────────────────────
 
-export async function getProducts(first = 24): Promise<Product[]> {
+export async function getProducts(
+  first = 24,
+  after?: string,
+): Promise<{ products: Product[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } }> {
   try {
     const data = await shopifyFetch<{ products: ShopifyConnection<Product> }>({
-      query: GET_PRODUCTS_QUERY, variables: { first },
+      query: GET_PRODUCTS_QUERY, variables: { first, after },
     });
-    return data.products.edges.map((e) => e.node);
-  } catch { return []; }
+    return {
+      products: data.products.edges.map((e) => e.node),
+      pageInfo: {
+        hasNextPage: data.products.pageInfo?.hasNextPage ?? false,
+        endCursor:   data.products.pageInfo?.endCursor   ?? null,
+      },
+    };
+  } catch { return { products: [], pageInfo: { hasNextPage: false, endCursor: null } }; }
 }
 
 export async function getProductByHandle(handle: string): Promise<Product | null> {
@@ -71,12 +80,22 @@ export async function getCollections(first = 20): Promise<Collection[]> {
   } catch { return []; }
 }
 
-export async function getCollectionByHandle(handle: string, first = 24): Promise<Collection | null> {
+export async function getCollectionByHandle(
+  handle: string,
+  first = 24,
+  after?: string,
+): Promise<{ collection: Collection; hasNextPage: boolean; endCursor: string | null } | null> {
   try {
     const data = await shopifyFetch<{ collectionByHandle: Collection | null }>({
-      query: GET_COLLECTION_BY_HANDLE_QUERY, variables: { handle, first },
+      query: GET_COLLECTION_BY_HANDLE_QUERY, variables: { handle, first, after },
     });
-    return data.collectionByHandle;
+    if (!data.collectionByHandle) return null;
+    const col = data.collectionByHandle;
+    return {
+      collection:  col,
+      hasNextPage: col.products.pageInfo?.hasNextPage ?? false,
+      endCursor:   col.products.pageInfo?.endCursor   ?? null,
+    };
   } catch { return null; }
 }
 

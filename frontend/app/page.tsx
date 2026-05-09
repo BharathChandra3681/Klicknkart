@@ -10,7 +10,7 @@ export const revalidate = 60;
 
 
 export default async function HomePage() {
-  const [products, collections] = await Promise.all([
+  const [{ products }, collections] = await Promise.all([
     getProducts(8),
     getCollections(20),
   ]);
