@@ -109,6 +109,13 @@ export default function CartDrawer() {
             </div>
             <a
               href={cart?.checkoutUrl}
+              onClick={(e) => {
+                if (!cart?.checkoutUrl) return;
+                const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+                const target = new URL(cart.checkoutUrl);
+                target.searchParams.set('return_to', `${appUrl}/order/confirmed`);
+                (e.currentTarget as HTMLAnchorElement).href = target.toString();
+              }}
               className="block w-full rounded-full bg-zinc-900 py-3 text-center text-sm font-semibold text-white hover:bg-zinc-700 transition-colors"
             >
               Checkout
