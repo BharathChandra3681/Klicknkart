@@ -3,7 +3,7 @@ import type { Customer } from './types';
 const SHOP_ID   = process.env.SHOPIFY_SHOP_ID!;
 const CLIENT_ID = process.env.SHOPIFY_CUSTOMER_ACCOUNT_CLIENT_ID!;
 const AUTH_BASE = `https://shopify.com/authentication/${SHOP_ID}`;
-const API_URL   = `https://shopify.com/authentication/${SHOP_ID}/account/customer/api/2024-10/graphql`;
+const API_URL   = `https://shopify.com/${SHOP_ID}/account/customer/api/2024-10/graphql`;
 
 // ── PKCE helpers ──────────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ export async function buildAuthorizationUrl(params: {
   url.searchParams.set('client_id',             CLIENT_ID);
   url.searchParams.set('response_type',         'code');
   url.searchParams.set('redirect_uri',          params.redirectUri);
-  url.searchParams.set('scope',                 'openid email https://api.customers.com/auth/customer.graphql');
+  url.searchParams.set('scope',                 'openid email');
   url.searchParams.set('code_challenge',        challenge);
   url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('state',                 params.state);
@@ -142,10 +142,16 @@ export async function fetchCustomer(accessToken: string): Promise<Customer | nul
     },
     body: JSON.stringify({ query: CUSTOMER_QUERY }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.error('[fetchCustomer] API response not ok:', res.status, await res.text().catch(() => ''));
+    return null;
+  }
 
   const { data, errors } = await res.json();
-  if (errors?.length || !data?.customer) return null;
+  if (errors?.length || !data?.customer) {
+    console.error('[fetchCustomer] GraphQL errors or no customer:', JSON.stringify(errors));
+    return null;
+  }
 
   const c = data.customer;
 

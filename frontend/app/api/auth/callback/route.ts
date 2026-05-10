@@ -20,11 +20,14 @@ export async function GET(req: NextRequest) {
   }
 
   const redirectUri = `${APP_URL}/api/auth/callback`;
+  console.log('[auth/callback] Exchanging code for tokens...');
   const tokens = await exchangeCodeForTokens({ code, codeVerifier, redirectUri });
 
   if (!tokens) {
+    console.error('[auth/callback] Token exchange returned null');
     return NextResponse.redirect(`${APP_URL}/account/login?error=token_failed`);
   }
+  console.log('[auth/callback] Token exchange successful, expires_in:', tokens.expires_in);
 
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
 
