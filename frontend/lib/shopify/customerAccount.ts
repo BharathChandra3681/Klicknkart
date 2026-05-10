@@ -36,10 +36,17 @@ export async function buildAuthorizationUrl(params: {
 }): Promise<string> {
   const challenge = await generateCodeChallenge(params.codeVerifier);
   const url = new URL(`${AUTH_BASE}/oauth/authorize`);
+  const scopes = [
+    'openid',
+    'email',
+    'https://api.shopify.com/auth/account.profile.read',
+    'https://api.shopify.com/auth/account.orders.read',
+    'https://api.shopify.com/auth/account.addresses.read',
+  ];
   url.searchParams.set('client_id',             CLIENT_ID);
   url.searchParams.set('response_type',         'code');
   url.searchParams.set('redirect_uri',          params.redirectUri);
-  url.searchParams.set('scope',                 'openid email');
+  url.searchParams.set('scope',                 scopes.join(' '));
   url.searchParams.set('code_challenge',        challenge);
   url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('state',                 params.state);
