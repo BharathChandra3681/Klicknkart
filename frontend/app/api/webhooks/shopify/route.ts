@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 
 const WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET ?? '';
 
@@ -62,7 +63,10 @@ async function handleInventoryUpdate(payload: Record<string, unknown>) {
   const available = payload['available'];
   const updatedAt = payload['updated_at'];
   console.log(`[webhook] inventory_levels/update — item=${inventoryItemId} location=${locationId} available=${available} at=${updatedAt}`);
-  // TODO: update local product availability cache, trigger low-stock alerts, invalidate cached product pages
+  // Invalidate product listing and collection pages so SSR/ISR picks up new stock
+  revalidatePath('/products');
+  revalidatePath('/collections');
+  revalidatePath('/');
 }
 
 async function handleProductUpdate(payload: Record<string, unknown>) {
@@ -71,13 +75,26 @@ async function handleProductUpdate(payload: Record<string, unknown>) {
   const handle = payload['handle'];
   const variants = (payload['variants'] as Array<{ id: number; price: string; compare_at_price: string | null }> | undefined) ?? [];
   console.log(`[webhook] products/update — id=${productId} title=${title} handle=${handle} variants=${variants.length}`);
-  // TODO: invalidate Next.js ISR cache for product/collection pages, update search index, refresh cached prices
+  // Invalidate the specific product page and listing pages so price/title/image changes reflect immediately
+  if (typeof handle === 'string') {
+    revalidatePath(`/products/${handle}`);
+  }
+  revalidatePath('/products');
+  revalidatePath('/collections');
+  revalidatePath('/');
 }
 
 async function handleProductDelete(payload: Record<string, unknown>) {
   const productId = payload['id'];
-  console.log(`[webhook] products/delete — id=${productId}`);
-  // TODO: remove from search index, invalidate caches, redirect product page to 404/collection page
+  const handle = payload['handle'];
+  console.log(`[webhook] products/delete — id=${productId} handle=${handle}`);
+  // Invalidate the deleted product page and listing pages
+  if (typeof handle === 'string') {
+    revalidatePath(`/products/${handle}`);
+  }
+  revalidatePath('/products');
+  revalidatePath('/collections');
+  revalidatePath('/');
 }
 
 // ── Customer handlers ───────────────────────────────────────────────────────
@@ -90,7 +107,9 @@ async function handleCustomerUpdate(payload: Record<string, unknown>) {
   const phone = payload['phone'];
   const verifiedEmail = payload['verified_email'];
   console.log(`[webhook] customers/update — id=${customerId} email=${email} name=${firstName} ${lastName} verified=${verifiedEmail}`);
-  // TODO: sync profile changes into any internal user database, update marketing lists
+  // Invalidate account pages so profile changes reflect on next visit
+  revalidatePath('/account');
+  revalidatePath('/account/edit');
 }
 
 // ── Main POST handler ───────────────────────────────────────────────────────
