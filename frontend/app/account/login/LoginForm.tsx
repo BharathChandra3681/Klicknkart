@@ -11,10 +11,6 @@ export default function LoginForm() {
     window.location.href = '/api/auth';
   }
 
-  function handleGoogleLogin() {
-    window.location.href = '/api/auth/google';
-  }
-
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
@@ -34,7 +30,7 @@ export default function LoginForm() {
             </Link>
             <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#00113a', margin: '0 0 8px', lineHeight: 1.2 }}>Welcome Back</h1>
             <p style={{ fontSize: '14px', color: '#444650', margin: 0, lineHeight: 1.5 }}>
-              Sign in securely through your Shopify account.
+              Sign in securely through your Shopify account. You can also use Google on the next screen.
             </p>
           </div>
 
@@ -42,11 +38,7 @@ export default function LoginForm() {
             <div style={{ marginBottom: '20px', padding: '12px', borderRadius: '8px', background: 'rgba(255,82,82,0.08)', border: '1px solid rgba(255,82,82,0.12)', color: '#7a1515', fontWeight: 600, textAlign: 'center' }}>
               {error === 'auth_failed' && 'Authentication failed. Try again.'}
               {error === 'token_failed' && 'Sign-in failed during token exchange. Check server logs.'}
-              {error === 'google_config_missing' && 'Google sign-in is missing environment configuration.'}
-              {error === 'google_token_exchange_failed' && 'Google token exchange failed. Check the Google redirect URI and client secret.'}
-              {error === 'google_user_info_failed' && 'Google user lookup failed after token exchange.'}
-              {error === 'google_callback_error' && 'Google sign-in failed unexpectedly.'}
-              {error !== 'auth_failed' && error !== 'token_failed' && error !== 'google_config_missing' && error !== 'google_token_exchange_failed' && error !== 'google_user_info_failed' && error !== 'google_callback_error' && `Error: ${error}`}
+              {error !== 'auth_failed' && error !== 'token_failed' && `Error: ${error}`}
             </div>
           )}
 
@@ -66,41 +58,16 @@ export default function LoginForm() {
               Continue with Email / Password
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(0,17,58,0.08)' }} />
-              <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9ea0ab', whiteSpace: 'nowrap' }}>or continue with</span>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(0,17,58,0.08)' }} />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <button
-                onClick={handleGoogleLogin}
-                style={{ padding: '13px', borderRadius: '8px', border: '1px solid rgba(0,17,58,0.15)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: '#00113a', fontFamily: 'inherit' }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                Google
-              </button>
-              <button
-                onClick={handleShopifyLogin}
-                style={{ padding: '13px', borderRadius: '8px', border: '1px solid rgba(0,17,58,0.15)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: '#00113a', fontFamily: 'inherit' }}
-              >
-                <svg width="18" height="18" fill="#1877F2" viewBox="0 0 24 24">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                </svg>
-                Facebook
-              </button>
-            </div>
+            <p style={{ textAlign: 'center', fontSize: '14px', color: '#444650', margin: 0 }}>
+              Don&apos;t have an account?{' '}
+              <Link href="/account/register" style={{ color: '#0058bc', fontWeight: 700, textDecoration: 'none' }}>Create one</Link>
+            </p>
           </div>
 
           <div style={{ marginTop: '28px', padding: '14px 16px', background: 'rgba(0,88,188,0.05)', borderRadius: '8px', border: '1px solid rgba(0,88,188,0.12)' }}>
             <p style={{ fontSize: '12px', color: '#444650', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px', color: '#0058bc' }}>shield</span>
-              Your credentials are handled securely by Shopify or Google. KlicknKart never sees your password.
+              Your credentials are handled securely by Shopify. KlicknKart never stores your password.
             </p>
           </div>
         </div>
