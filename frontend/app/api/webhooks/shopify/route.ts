@@ -97,6 +97,38 @@ async function handleProductDelete(payload: Record<string, unknown>) {
   revalidatePath('/');
 }
 
+// ── Checkout handlers ───────────────────────────────────────────────────────
+
+async function handleCheckoutCreate(payload: Record<string, unknown>) {
+  const checkoutId = payload['id'];
+  const token = payload['token'];
+  const email = payload['email'];
+  const totalPrice = payload['total_price'];
+  const lineItems = (payload['line_items'] as Array<{ title?: string; quantity?: number }> | undefined) ?? [];
+  const itemCount = lineItems.reduce((sum, li) => sum + (li.quantity ?? 0), 0);
+  console.log(`[webhook] checkouts/create — token=${token} checkout=${checkoutId} email=${email} total=${totalPrice} items=${itemCount}`);
+  // TODO: record checkout start in analytics/DB for abandoned-cart recovery pipeline
+}
+
+async function handleCheckoutUpdate(payload: Record<string, unknown>) {
+  const checkoutId = payload['id'];
+  const token = payload['token'];
+  const email = payload['email'];
+  const totalPrice = payload['total_price'];
+  const abandoned = payload['abandoned_checkout_url'];
+  const completedAt = payload['completed_at'];
+  if (completedAt) {
+    console.log(`[webhook] checkouts/update — COMPLETED token=${token} checkout=${checkoutId} email=${email} total=${totalPrice}`);
+    // TODO: mark checkout as completed in analytics/DB, trigger post-purchase email sequence
+  } else if (abandoned) {
+    console.log(`[webhook] checkouts/update — ABANDONED token=${token} checkout=${checkoutId} email=${email} abandonedUrl=${abandoned}`);
+    // TODO: trigger abandoned-cart recovery email after delay (e.g. 1h), update analytics
+  } else {
+    console.log(`[webhook] checkouts/update — PROGRESS token=${token} checkout=${checkoutId} email=${email} total=${totalPrice}`);
+    // TODO: update checkout progress in analytics/DB
+  }
+}
+
 // ── Customer handlers ───────────────────────────────────────────────────────
 
 async function handleCustomerUpdate(payload: Record<string, unknown>) {
@@ -159,6 +191,12 @@ export async function POST(req: NextRequest) {
       break;
     case 'customers/update':
       handleCustomerUpdate(payload).catch((e) => console.error('[webhook] customers/update error', e));
+      break;
+    case 'checkouts/create':
+      handleCheckoutCreate(payload).catch((e) => console.error('[webhook] checkouts/create error', e));
+      break;
+    case 'checkouts/update':
+      handleCheckoutUpdate(payload).catch((e) => console.error('[webhook] checkouts/update error', e));
       break;
     default:
       console.log(`[webhook] unhandled topic: ${topic}`);
