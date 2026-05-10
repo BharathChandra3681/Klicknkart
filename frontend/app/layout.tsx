@@ -31,6 +31,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </SiteShell>
         </CustomerProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
