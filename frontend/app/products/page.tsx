@@ -34,7 +34,7 @@ function sortProducts(products: Awaited<ReturnType<typeof getProducts>>['product
 }
 
 export default async function ProductsPage({ searchParams }: Props) {
-  const query  = await (searchParams ?? Promise.resolve({}));
+  const query  = searchParams ? await searchParams : {};
   const after  = firstValue(query.after);
   const sort   = firstValue(query.sort) ?? 'relevance';
 
