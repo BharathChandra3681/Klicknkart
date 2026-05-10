@@ -8,6 +8,10 @@ export default function RegisterPage() {
     window.location.href = '/api/auth';
   }
 
+  function handleGoogleSignup() {
+    window.location.href = '/api/auth/google';
+  }
+
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
@@ -30,7 +34,7 @@ export default function RegisterPage() {
             </Link>
             <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#00113a', margin: '0 0 8px', lineHeight: 1.2 }}>Create Account</h1>
             <p style={{ fontSize: '14px', color: '#444650', margin: 0, lineHeight: 1.5 }}>
-              Sign up securely through Shopify — no password stored on our servers.
+              Sign up securely through Shopify or Google — no password stored on our servers.
             </p>
           </div>
 
@@ -62,7 +66,7 @@ export default function RegisterPage() {
             {/* Google + Facebook */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <button
-                onClick={handleShopifySignup}
+                onClick={handleGoogleSignup}
                 style={{ padding: '13px', borderRadius: '8px', border: '1px solid rgba(0,17,58,0.15)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: '#00113a', fontFamily: 'inherit' }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24">
@@ -96,7 +100,7 @@ export default function RegisterPage() {
           <div style={{ marginTop: '28px', padding: '14px 16px', background: 'rgba(0,88,188,0.05)', borderRadius: '8px', border: '1px solid rgba(0,88,188,0.12)' }}>
             <p style={{ fontSize: '12px', color: '#444650', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px', color: '#0058bc' }}>shield</span>
-              Account creation is handled by Shopify. KlicknKart never stores your password.
+              Account creation is handled by Shopify or Google. KlicknKart never stores your password.
             </p>
           </div>
 

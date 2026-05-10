@@ -4,11 +4,52 @@ import {
   refreshAccessToken,
   COOKIE,
 } from '@/lib/shopify/customerAccount';
+import type { Customer } from '@/lib/shopify/types';
+
+function buildGoogleCustomer(rawValue: string): Customer | null {
+  try {
+    const session = JSON.parse(rawValue) as {
+      googleId?: string;
+      email?: string;
+      name?: string;
+      picture?: string;
+    };
+
+    if (!session.googleId || !session.email) {
+      return null;
+    }
+
+    const parts = (session.name ?? '').trim().split(/\s+/).filter(Boolean);
+    const firstName = parts[0] ?? null;
+    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : null;
+
+    return {
+      id: session.googleId,
+      firstName,
+      lastName,
+      email: session.email,
+      phone: null,
+      defaultAddress: null,
+      addresses: { edges: [] },
+      orders: { edges: [] },
+    };
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(req: NextRequest) {
   let accessToken  = req.cookies.get(COOKIE.ACCESS_TOKEN)?.value;
   const expiresAt  = req.cookies.get(COOKIE.EXPIRES_AT)?.value;
   const refreshToken = req.cookies.get(COOKIE.REFRESH_TOKEN)?.value;
+  const googleSession = req.cookies.get(COOKIE.GOOGLE_SESSION)?.value;
+
+  if (!accessToken && googleSession) {
+    const customer = buildGoogleCustomer(googleSession);
+    if (customer) {
+      return NextResponse.json({ customer });
+    }
+  }
 
   if (!accessToken) {
     return NextResponse.json({ customer: null }, { status: 401 });

@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
   res.cookies.delete({ name: COOKIE.ACCESS_TOKEN,  ...deleteOpts });
   res.cookies.delete({ name: COOKIE.REFRESH_TOKEN, ...deleteOpts });
   res.cookies.delete({ name: COOKIE.EXPIRES_AT,    ...deleteOpts });
+  res.cookies.delete({ name: COOKIE.GOOGLE_SESSION, ...deleteOpts });
   res.cookies.delete({ name: COOKIE.STATE,         ...deleteOpts });
   res.cookies.delete({ name: COOKIE.VERIFIER,      ...deleteOpts });
 

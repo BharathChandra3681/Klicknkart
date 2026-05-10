@@ -1,10 +1,18 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
+
   function handleShopifyLogin() {
     window.location.href = '/api/auth';
+  }
+
+  function handleGoogleLogin() {
+    window.location.href = '/api/auth/google';
   }
 
   return (
@@ -13,19 +21,13 @@ export default function LoginPage() {
       background: 'radial-gradient(ellipse at 10% 15%, rgba(179,197,255,0.3) 0%, transparent 50%), radial-gradient(ellipse at 90% 85%, rgba(137,208,237,0.2) 0%, transparent 50%), #eef0f4',
       fontFamily: "'Manrope', sans-serif",
     }}>
-
-      {/* Page body */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 16px' }}>
-
-        {/* Card */}
         <div style={{
           width: '100%', maxWidth: '420px',
           background: '#ffffff', borderRadius: '16px',
           padding: '48px 40px 40px',
           boxShadow: '0 4px 48px rgba(0,17,58,0.10)',
         }}>
-
-          {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: '36px' }}>
             <Link href="/" style={{ display: 'block', fontSize: '22px', fontWeight: 900, color: '#1a3faa', letterSpacing: '-0.5px', marginBottom: '20px', textDecoration: 'none' }}>
               KlicknKart
@@ -36,9 +38,19 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {error && (
+            <div style={{ marginBottom: '20px', padding: '12px', borderRadius: '8px', background: 'rgba(255,82,82,0.08)', border: '1px solid rgba(255,82,82,0.12)', color: '#7a1515', fontWeight: 600, textAlign: 'center' }}>
+              {error === 'auth_failed' && 'Authentication failed. Try again.'}
+              {error === 'token_failed' && 'Sign-in failed during token exchange. Check server logs.'}
+              {error === 'google_config_missing' && 'Google sign-in is missing environment configuration.'}
+              {error === 'google_token_exchange_failed' && 'Google token exchange failed. Check the Google redirect URI and client secret.'}
+              {error === 'google_user_info_failed' && 'Google user lookup failed after token exchange.'}
+              {error === 'google_callback_error' && 'Google sign-in failed unexpectedly.'}
+              {error !== 'auth_failed' && error !== 'token_failed' && error !== 'google_config_missing' && error !== 'google_token_exchange_failed' && error !== 'google_user_info_failed' && error !== 'google_callback_error' && `Error: ${error}`}
+            </div>
+          )}
 
-            {/* Primary CTA — Shopify OAuth */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <button
               onClick={handleShopifyLogin}
               style={{
@@ -54,34 +66,15 @@ export default function LoginPage() {
               Continue with Email / Password
             </button>
 
-            {/* Divider */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{ flex: 1, height: '1px', background: 'rgba(0,17,58,0.08)' }} />
               <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9ea0ab', whiteSpace: 'nowrap' }}>or continue with</span>
               <div style={{ flex: 1, height: '1px', background: 'rgba(0,17,58,0.08)' }} />
             </div>
 
-            {/* Shop Pay */}
-            <button
-              onClick={handleShopifyLogin}
-              style={{
-                width: '100%', padding: '13px', borderRadius: '8px',
-                border: '1px solid rgba(0,17,58,0.15)', background: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                fontSize: '14px', fontWeight: 600, color: '#00113a', cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-                <path d="M17.4334 11.1925C17.7025 10.9234 17.85 10.5591 17.85 10.1775V3.1275C17.85 2.22881 17.1212 1.5 16.2225 1.5H7.7775C6.87881 1.5 6.15 2.22881 6.15 3.1275V10.1775C6.15 10.5591 6.2975 10.9234 6.56656 11.1925L12 16.6259L17.4334 11.1925Z" fill="#5A2FF1"/>
-                <path d="M12 22.5C14.4853 22.5 16.5 20.4853 16.5 18C16.5 15.5147 14.4853 13.5 12 13.5C9.51472 13.5 7.5 15.5147 7.5 18C7.5 20.4853 9.51472 22.5 12 22.5Z" fill="#5A2FF1"/>
-              </svg>
-              Sign in with Shop
-            </button>
-
-            {/* Google + Facebook */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <button
-                onClick={handleShopifyLogin}
+                onClick={handleGoogleLogin}
                 style={{ padding: '13px', borderRadius: '8px', border: '1px solid rgba(0,17,58,0.15)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: '#00113a', fontFamily: 'inherit' }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24">
@@ -102,21 +95,17 @@ export default function LoginPage() {
                 Facebook
               </button>
             </div>
-
           </div>
 
-          {/* Info note */}
           <div style={{ marginTop: '28px', padding: '14px 16px', background: 'rgba(0,88,188,0.05)', borderRadius: '8px', border: '1px solid rgba(0,88,188,0.12)' }}>
             <p style={{ fontSize: '12px', color: '#444650', margin: 0, lineHeight: 1.6, textAlign: 'center' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px', color: '#0058bc' }}>shield</span>
-              Your credentials are handled securely by Shopify. KlicknKart never sees your password.
+              Your credentials are handled securely by Shopify or Google. KlicknKart never sees your password.
             </p>
           </div>
-
         </div>
       </div>
 
-      {/* Footer */}
       <footer style={{ borderTop: '1px solid #e2e5e9', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '24px 64px', gap: '12px' }}>
         <span style={{ fontSize: '14px', fontWeight: 800, color: '#00113a', letterSpacing: '-0.3px' }}>KlicknKart</span>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
