@@ -5,9 +5,10 @@ import { useCart } from '@/context/CartContext';
 import type { CartItem } from '@/lib/shopify/types';
 
 export default function CartDrawer() {
-  const { cart, cartOpen, setCartOpen, updateItem, removeItem, isLoading } = useCart();
+  const { cart, cartOpen, setCartOpen, updateItem, removeItem, isLoading, cartErrors } = useCart();
 
   const lines: CartItem[] = cart?.lines.edges.map((e) => e.node) ?? [];
+  const errorMap = new Map(cartErrors.map((e) => [e.lineId, e.message]));
 
   return (
     <>
@@ -66,6 +67,9 @@ export default function CartDrawer() {
                     {line.merchandise.price.currencyCode}{' '}
                     {parseFloat(line.merchandise.price.amount).toFixed(2)}
                   </p>
+                  {errorMap.has(line.id) && (
+                    <span className="text-xs font-semibold text-red-600">{errorMap.get(line.id)}</span>
+                  )}
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <button
@@ -110,15 +114,22 @@ export default function CartDrawer() {
             <a
               href={cart?.checkoutUrl}
               onClick={(e) => {
-                if (!cart?.checkoutUrl) return;
+                if (!cart?.checkoutUrl || cartErrors.length > 0) {
+                  e.preventDefault();
+                  return;
+                }
                 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
                 const target = new URL(cart.checkoutUrl);
                 target.searchParams.set('return_to', `${appUrl}/order/confirmed`);
                 (e.currentTarget as HTMLAnchorElement).href = target.toString();
               }}
-              className="block w-full rounded-full bg-zinc-900 py-3 text-center text-sm font-semibold text-white hover:bg-zinc-700 transition-colors"
+              className={`block w-full rounded-full py-3 text-center text-sm font-semibold text-white transition-colors ${
+                cartErrors.length > 0
+                  ? 'bg-zinc-400 cursor-not-allowed'
+                  : 'bg-zinc-900 hover:bg-zinc-700'
+              }`}
             >
-              Checkout
+              {cartErrors.length > 0 ? 'Remove unavailable items to checkout' : 'Checkout'}
             </a>
           </div>
         )}

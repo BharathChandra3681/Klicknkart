@@ -150,14 +150,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const errors: CartLineError[] = [];
         refreshed.lines.edges.forEach((e) => {
           const line = e.node;
-          // Shopify cart lines don't expose availableForSale directly on merchandise in cart fragment,
-          // but if quantity is 0 or line was removed by Shopify, we flag it.
-          // A more robust check would query variant availability separately.
+          if (!line.merchandise.availableForSale) {
+            errors.push({ lineId: line.id, message: 'Out of stock' });
+          }
         });
         setCartErrors(errors);
       } else {
         localStorage.removeItem(CART_ID_KEY);
         setCart(null);
+        setCartErrors([]);
       }
     } catch {
       /* ignore */
