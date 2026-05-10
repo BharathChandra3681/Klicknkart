@@ -24,7 +24,7 @@ async function handleOrderPaid(payload: Record<string, unknown>) {
   const email = payload['email'];
   const total = payload['total_price'];
   console.log(`[webhook] orders/paid — #${orderNumber} (${orderId}) email=${email} total=${total}`);
-  // TODO: trigger transactional email, update internal DB, etc.
+  // Kept minimal: Shopify analytics handles order tracking. Add email/DB only if needed later.
 }
 
 async function handleOrderFulfilled(payload: Record<string, unknown>) {
@@ -34,7 +34,7 @@ async function handleOrderFulfilled(payload: Record<string, unknown>) {
     ?.map((f) => f.tracking_number)
     .filter(Boolean);
   console.log(`[webhook] orders/fulfilled — #${orderNumber} (${orderId}) tracking=${trackingNumbers?.join(', ')}`);
-  // TODO: send shipping notification email, etc.
+  // Kept minimal: Shopify sends shipping notifications to customers.
 }
 
 async function handleOrderCancelled(payload: Record<string, unknown>) {
@@ -43,7 +43,7 @@ async function handleOrderCancelled(payload: Record<string, unknown>) {
   const email = payload['email'];
   const cancelReason = payload['cancel_reason'] ?? 'N/A';
   console.log(`[webhook] orders/cancelled — #${orderNumber} (${orderId}) email=${email} reason=${cancelReason}`);
-  // TODO: notify user of cancellation, update internal order status, release inventory if needed
+  // Kept minimal: Shopify notifies customer of cancellation. Inventory auto-released by Shopify.
 }
 
 async function handleRefundCreate(payload: Record<string, unknown>) {
@@ -52,7 +52,7 @@ async function handleRefundCreate(payload: Record<string, unknown>) {
   const transactions = (payload['transactions'] as Array<{ amount?: string; gateway?: string }> | undefined) ?? [];
   const totalRefunded = transactions.reduce((sum, t) => sum + parseFloat(t.amount ?? '0'), 0);
   console.log(`[webhook] refunds/create — refund=${refundId} order=${orderId} amount=${totalRefunded.toFixed(2)}`);
-  // TODO: notify user of refund processed, update internal financial records
+  // Kept minimal: Shopify handles refund notifications to customer.
 }
 
 // ── Product & inventory handlers ────────────────────────────────────────────
@@ -107,7 +107,7 @@ async function handleCheckoutCreate(payload: Record<string, unknown>) {
   const lineItems = (payload['line_items'] as Array<{ title?: string; quantity?: number }> | undefined) ?? [];
   const itemCount = lineItems.reduce((sum, li) => sum + (li.quantity ?? 0), 0);
   console.log(`[webhook] checkouts/create — token=${token} checkout=${checkoutId} email=${email} total=${totalPrice} items=${itemCount}`);
-  // TODO: record checkout start in analytics/DB for abandoned-cart recovery pipeline
+  // Kept minimal: Shopify analytics tracks checkout funnel.
 }
 
 async function handleCheckoutUpdate(payload: Record<string, unknown>) {
@@ -119,13 +119,13 @@ async function handleCheckoutUpdate(payload: Record<string, unknown>) {
   const completedAt = payload['completed_at'];
   if (completedAt) {
     console.log(`[webhook] checkouts/update — COMPLETED token=${token} checkout=${checkoutId} email=${email} total=${totalPrice}`);
-    // TODO: mark checkout as completed in analytics/DB, trigger post-purchase email sequence
+    // Kept minimal: Shopify analytics tracks completed checkouts.
   } else if (abandoned) {
     console.log(`[webhook] checkouts/update — ABANDONED token=${token} checkout=${checkoutId} email=${email} abandonedUrl=${abandoned}`);
-    // TODO: trigger abandoned-cart recovery email after delay (e.g. 1h), update analytics
+    // Kept minimal: Shopify abandoned checkout recovery handles follow-up emails.
   } else {
     console.log(`[webhook] checkouts/update — PROGRESS token=${token} checkout=${checkoutId} email=${email} total=${totalPrice}`);
-    // TODO: update checkout progress in analytics/DB
+    // Kept minimal: Shopify analytics tracks checkout progress.
   }
 }
 
