@@ -42,6 +42,7 @@ export type CartItem = {
   merchandise: {
     id: string;
     title: string;
+    availableForSale: boolean;
     product: Pick<Product, 'title' | 'handle' | 'featuredImage'>;
     price: Money;
   };
