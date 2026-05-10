@@ -183,7 +183,6 @@ export const COOKIE = {
   ACCESS_TOKEN:  'shopify_ca_access',
   REFRESH_TOKEN: 'shopify_ca_refresh',
   EXPIRES_AT:    'shopify_ca_expires',
-  GOOGLE_SESSION:'google_session',
   STATE:         'shopify_oauth_state',
   VERIFIER:      'shopify_oauth_verifier',
 } as const;
