@@ -7,7 +7,7 @@ import Footer from '@/components/Footer';
 export const revalidate = 60;
 
 export async function generateStaticParams() {
-  const products = await getProducts(50);
+  const { products } = await getProducts(50);
   return products.map((p) => ({ handle: p.handle }));
 }
 

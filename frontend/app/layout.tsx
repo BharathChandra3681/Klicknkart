@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { CustomerProvider } from '@/context/CustomerContext';
 import SiteShell from '@/components/SiteShell';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 export const metadata: Metadata = {
   title: { default: 'KlicknKart', template: '%s | KlicknKart' },
