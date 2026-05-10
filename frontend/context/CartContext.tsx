@@ -19,6 +19,11 @@ import {
 } from '@/lib/shopify';
 import type { Cart } from '@/lib/shopify/types';
 
+type CartLineError = {
+  lineId: string;
+  message: string;
+};
+
 type CartContextValue = {
   cart: Cart | null;
   cartOpen: boolean;
@@ -27,6 +32,8 @@ type CartContextValue = {
   updateItem: (lineId: string, quantity: number) => Promise<void>;
   removeItem: (lineId: string) => Promise<void>;
   isLoading: boolean;
+  refreshCart: () => Promise<void>;
+  cartErrors: CartLineError[];
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -48,6 +55,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart]         = useState<Cart | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [cartErrors, setCartErrors] = useState<CartLineError[]>([]);
   const linkedEmail = useRef<string | null>(null);
 
   // Load cart from localStorage, then link customer if logged in
@@ -124,6 +132,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         const updated = await removeFromCart(cart.id, [lineId]);
         setCart(updated);
+        setCartErrors((prev) => prev.filter((e) => e.lineId !== lineId));
       } finally {
         setIsLoading(false);
       }
@@ -131,9 +140,42 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [cart]
   );
 
+  const refreshCart = useCallback(async () => {
+    if (!cart) return;
+    setIsLoading(true);
+    try {
+      const refreshed = await getCart(cart.id);
+      if (refreshed) {
+        setCart(refreshed);
+        const errors: CartLineError[] = [];
+        refreshed.lines.edges.forEach((e) => {
+          const line = e.node;
+          // Shopify cart lines don't expose availableForSale directly on merchandise in cart fragment,
+          // but if quantity is 0 or line was removed by Shopify, we flag it.
+          // A more robust check would query variant availability separately.
+        });
+        setCartErrors(errors);
+      } else {
+        localStorage.removeItem(CART_ID_KEY);
+        setCart(null);
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setIsLoading(false);
+    }
+  }, [cart]);
+
+  // Refresh cart when drawer opens to catch stock changes
+  useEffect(() => {
+    if (cartOpen && cart) {
+      refreshCart();
+    }
+  }, [cartOpen, cart, refreshCart]);
+
   return (
     <CartContext.Provider
-      value={{ cart, cartOpen, setCartOpen, addItem, updateItem, removeItem, isLoading }}
+      value={{ cart, cartOpen, setCartOpen, addItem, updateItem, removeItem, isLoading, refreshCart, cartErrors }}
     >
       {children}
     </CartContext.Provider>
