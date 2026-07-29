@@ -3,7 +3,7 @@ import type { Customer } from './types';
 const SHOP_ID   = process.env.SHOPIFY_SHOP_ID!;
 const CLIENT_ID = process.env.SHOPIFY_CUSTOMER_ACCOUNT_CLIENT_ID!;
 const AUTH_BASE = `https://shopify.com/authentication/${SHOP_ID}`;
-const API_URL   = `https://shopify.com/${SHOP_ID}/account/customer/api/2024-10/graphql`;
+const API_URL   = `https://shopify.com/${SHOP_ID}/account/customer/api/2025-01/graphql`;
 
 // ── PKCE helpers ──────────────────────────────────────────────────────────────
 
@@ -36,13 +36,9 @@ export async function buildAuthorizationUrl(params: {
 }): Promise<string> {
   const challenge = await generateCodeChallenge(params.codeVerifier);
   const url = new URL(`${AUTH_BASE}/oauth/authorize`);
-  const scopes = [
-    'openid',
-    'email',
-    'https://api.shopify.com/auth/account.profile.read',
-    'https://api.shopify.com/auth/account.orders.read',
-    'https://api.shopify.com/auth/account.addresses.read',
-  ];
+  // 'customer-account-api:full' is the correct scope for the Customer Account API.
+  // The old long URL-format scopes (https://api.shopify.com/auth/...) are rejected by Shopify.
+  const scopes = ['openid', 'email', 'customer-account-api:full'];
   url.searchParams.set('client_id',             CLIENT_ID);
   url.searchParams.set('response_type',         'code');
   url.searchParams.set('redirect_uri',          params.redirectUri);
