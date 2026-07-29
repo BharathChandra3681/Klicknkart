@@ -5,12 +5,15 @@ import {
   COOKIE,
 } from '@/lib/shopify/customerAccount';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL!;
+export async function GET(req: NextRequest) {
+  const origin = req.nextUrl.origin;
+  const appUrl = (origin && !origin.includes('localhost'))
+    ? origin
+    : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
 
-export async function GET() {
   const codeVerifier = generateRandomString(64);
   const state        = generateRandomString(32);
-  const redirectUri  = `${APP_URL}/api/auth/callback`;
+  const redirectUri  = `${appUrl}/api/auth/callback`;
 
   const authUrl = await buildAuthorizationUrl({ codeVerifier, state, redirectUri });
 

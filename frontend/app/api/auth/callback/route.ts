@@ -4,9 +4,12 @@ import {
   COOKIE,
 } from '@/lib/shopify/customerAccount';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL!;
-
 export async function GET(req: NextRequest) {
+  const origin = req.nextUrl.origin;
+  const appUrl = (origin && !origin.includes('localhost'))
+    ? origin
+    : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+
   const { searchParams } = req.nextUrl;
   const code  = searchParams.get('code');
   const state = searchParams.get('state');
@@ -16,22 +19,28 @@ export async function GET(req: NextRequest) {
 
   // Validate state to prevent CSRF
   if (!code || !state || state !== storedState || !codeVerifier) {
-    return NextResponse.redirect(`${APP_URL}/account/login?error=auth_failed`);
+    console.error('[auth/callback] Validation failed:', {
+      hasCode: !!code,
+      hasState: !!state,
+      stateMatch: state === storedState,
+      hasVerifier: !!codeVerifier,
+    });
+    return NextResponse.redirect(`${appUrl}/account/login?error=auth_failed`);
   }
 
-  const redirectUri = `${APP_URL}/api/auth/callback`;
-  console.log('[auth/callback] Exchanging code for tokens...');
+  const redirectUri = `${appUrl}/api/auth/callback`;
+  console.log('[auth/callback] Exchanging code for tokens with redirectUri:', redirectUri);
   const tokens = await exchangeCodeForTokens({ code, codeVerifier, redirectUri });
 
   if (!tokens) {
     console.error('[auth/callback] Token exchange returned null');
-    return NextResponse.redirect(`${APP_URL}/account/login?error=token_failed`);
+    return NextResponse.redirect(`${appUrl}/account/login?error=token_failed`);
   }
   console.log('[auth/callback] Token exchange successful, expires_in:', tokens.expires_in);
 
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
 
-  const res = NextResponse.redirect(`${APP_URL}/account`);
+  const res = NextResponse.redirect(`${appUrl}/account`);
 
   const secure  = process.env.NODE_ENV === 'production';
   const baseOpts = { httpOnly: true, sameSite: 'lax' as const, secure, path: '/' };
